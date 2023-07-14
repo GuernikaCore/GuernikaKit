@@ -1,0 +1,23 @@
+{
+  "pins" : [
+    {
+      "identity" : "randomgenerator",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/GuernikaCore/RandomGenerator.git",
+      "state" : {
+        "revision" : "7c91e2f454ecc753075a526cf5ffc34d3c4a10c5",
+        "version" : "1.0.0"
+      }
+    },
+    {
+      "identity" : "schedulers",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/GuernikaCore/Schedulers.git",
+      "state" : {
+        "revision" : "e544df6eb1e8ff8c7bad3677ab0db4a05f0f069a",
+        "version" : "0.9.1"
+      }
+    }
+  ],
+  "version" : 2
+}

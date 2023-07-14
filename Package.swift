@@ -4,25 +4,29 @@
 import PackageDescription
 
 let package = Package(
-    name: "DiffusionPipelines",
+    name: "GuernikaKit",
+    platforms: [
+        .macOS(.v13),
+        .iOS(.v16),
+    ],
     products: [
-        // Products define the executables and libraries a package produces, and make them visible to other packages.
-        .library(
-            name: "DiffusionPipelines",
-            targets: ["DiffusionPipelines"]),
+        .library(name: "GuernikaKit", targets: ["GuernikaKit"]),
     ],
     dependencies: [
-        // Dependencies declare other packages that this package depends on.
-        // .package(url: /* package url */, from: "1.0.0"),
+        .package(url: "https://github.com/GuernikaCore/RandomGenerator.git", from: "1.0.0"),
+        .package(url: "https://github.com/GuernikaCore/Schedulers.git", from: "0.9.1"),
     ],
     targets: [
-        // Targets are the basic building blocks of a package. A target can define a module or a test suite.
-        // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(
-            name: "DiffusionPipelines",
-            dependencies: []),
+            name: "GuernikaKit",
+            dependencies: [
+                .product(name: "RandomGenerator", package: "RandomGenerator"),
+                .product(name: "Schedulers", package: "Schedulers")
+            ]
+        ),
         .testTarget(
-            name: "DiffusionPipelinesTests",
-            dependencies: ["DiffusionPipelines"]),
+            name: "GuernikaKitTests",
+            dependencies: ["GuernikaKit"]
+        ),
     ]
 )
