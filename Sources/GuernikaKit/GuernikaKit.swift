@@ -57,11 +57,7 @@ public enum GuernikaKit {
         switch unet.function {
         case .refiner:
             let textEncoder2Url = baseUrl.appending(path: "TextEncoder2.mlmodelc")
-            let textEncoder2 = try TextEncoder(
-                modelAt: textEncoder2Url,
-                baseUrl: textEncoder2Url,
-                configuration: unet.configuration
-            )
+            let textEncoder2 = try TextEncoder(modelAt: textEncoder2Url, configuration: unet.configuration)
             let encoder = try Encoder(modelAt: encoderUrl, configuration: unet.configuration)
             return StableDiffusionXLRefinerPipeline(
                 baseUrl: baseUrl,
@@ -105,11 +101,7 @@ public enum GuernikaKit {
             var textEncoder2: TextEncoder? = nil
             let textEncoder2Url = baseUrl.appending(path: "TextEncoder2.mlmodelc")
             if FileManager.default.fileExists(atPath: textEncoder2Url.path(percentEncoded: false)) {
-                textEncoder2 = try TextEncoder(
-                    modelAt: textEncoder2Url,
-                    baseUrl: textEncoder2Url,
-                    configuration: unet.configuration
-                )
+                textEncoder2 = try TextEncoder(modelAt: textEncoder2Url, configuration: unet.configuration)
             }
             if let textEncoder2 {
                 textEncoder.tokenizer.padToken = "<|endoftext|>"

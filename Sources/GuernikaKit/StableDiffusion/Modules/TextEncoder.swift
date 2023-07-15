@@ -45,7 +45,14 @@ public class TextEncoder {
         configuration: MLModelConfiguration? = nil
     ) throws {
         self.modelUrl = url
-        self.baseUrl = baseUrl ?? modelUrl.deletingLastPathComponent()
+        if FileManager.default.fileExists(atPath: modelUrl.appending(component: "vocab.json").path(percentEncoded: false)) {
+            self.baseUrl = modelUrl
+        } else if let baseUrl {
+            self.baseUrl = baseUrl
+        } else  {
+            self.baseUrl = modelUrl.deletingLastPathComponent()
+        }
+        
         let metadata = try CoreMLMetadata.metadataForModel(at: url)
         self.maxInputLength = metadata.inputSchema[0].shape.last!
         if let hiddenSizeString = metadata.userDefinedMetadata?["hidden_size"], let hiddenSize = Int(hiddenSizeString) {
@@ -111,7 +118,7 @@ public class TextEncoder {
             return try model.prediction(from: inputFeatures)
         }
         let pooledOutputsFeature = result.featureValue(for: "pooled_outputs")
-        var pooledOutputs = MLShapedArray<Float32>(converting: pooledOutputsFeature!.multiArrayValue!)
+        let pooledOutputs = MLShapedArray<Float32>(converting: pooledOutputsFeature!.multiArrayValue!)
         
         let embeddingFeature = result.featureValue(for: "last_hidden_state")
         var textEmbeddings = MLShapedArray<Float32>(converting: embeddingFeature!.multiArrayValue!)
