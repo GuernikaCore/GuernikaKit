@@ -285,10 +285,8 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
             guard let encoder else {
                 throw StableDiffusionError.encoderMissing
             }
-            if unet.function != .inpaint || strength < 1 {
-                imageLatent = try encoder.encode(image, scaleFactor: 0.13025, generator: generator)
-            }
-            if strength >= 1 {
+            imageLatent = try encoder.encode(image, scaleFactor: 0.13025, generator: generator)
+            if input.inpaintMask != nil && strength >= 1 {
                 let stdev = scheduler.initNoiseSigma
                 noise = generator.nextArray(shape: sampleShape, mean: 0, stdev: stdev)
                 latent = noise!
