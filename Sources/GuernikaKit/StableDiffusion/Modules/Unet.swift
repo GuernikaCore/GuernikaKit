@@ -88,7 +88,7 @@ public class Unet {
         if let info = try? Info.infoForModel(at: urls[0]) {
             converterVersion = info.converterVersion
             function = info.function
-            predictionType = info.predictionType
+            predictionType = info.predictionType ?? .epsilon
         } else {
             converterVersion = metadata.userDefinedMetadata?["converter_version"]
             if metadata.userDefinedMetadata?["requires_aesthetics_score"] == "true" {
@@ -289,7 +289,7 @@ extension Unet {
         let id: String
         let converterVersion: String?
         let function: Function
-        let predictionType: PredictionType
+        let predictionType: PredictionType?
         
         enum CodingKeys: String, CodingKey {
             case id = "identifier"
