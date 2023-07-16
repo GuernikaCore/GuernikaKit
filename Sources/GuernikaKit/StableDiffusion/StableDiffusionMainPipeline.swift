@@ -136,7 +136,13 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
         )
 
         // Generate random latent sample from specified seed
-        var latent = try generateLatentSample(input: input, generator: generator, scheduler: scheduler)
+        var (latent, noise, imageLatent) = try prepareLatent(input: input, generator: generator, scheduler: scheduler)
+        // Prepare mask only for inpainting
+        let (mask, maskedImage) = try prepareMaskLatents(input: input, generator: generator)
+        
+        if reduceMemory {
+            encoder?.unloadResources()
+        }
 
         // De-noising loop
         for (step, t) in scheduler.timeSteps.enumerated() {
@@ -146,6 +152,14 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
             
             latentUnetInput = scheduler.scaleModelInput(timeStep: t, sample: latentUnetInput)
             
+            if unet.function == .inpaint {
+                guard let mask, let maskedImage else {
+                    throw StableDiffusionError.missingInputs
+                }
+                // Concat mask in case we are doing inpainting
+                latentUnetInput = MLShapedArray<Float32>(concatenating: [latentUnetInput, mask, maskedImage], alongAxis: 1)
+            }
+            
             let additionalResiduals = try controlNets.predictResiduals(
                 latent: latentUnetInput,
                 timeStep: t,
@@ -154,23 +168,51 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
 
             // Predict noise residuals from latent samples
             // and current time step conditioned on hidden states
-            var noise = try unet.predictNoise(
+            var noisePrediction = try unet.predictNoise(
                 latents: [latentUnetInput],
                 additionalResiduals: additionalResiduals.map { [$0] },
                 timeStep: t,
                 hiddenStates: hiddenStates
             )[0]
 
-            noise = performGuidance(noise, guidanceScale: input.guidanceScale)
+            noisePrediction = performGuidance(noisePrediction, guidanceScale: input.guidanceScale)
 
             // Have the scheduler compute the previous (t-1) latent
             // sample given the predicted noise and current sample
             latent = scheduler.step(
-                output: noise,
+                output: noisePrediction,
                 timeStep: t,
                 sample: latent,
                 generator: generator
             )
+            
+            if let mask, let noise, let imageLatent, unet.function != .inpaint {
+                var initLatentProper = imageLatent
+                if step < scheduler.timeSteps.count - 1 {
+                    let noiseTimeStep = scheduler.timeSteps[step + 1]
+                    initLatentProper = scheduler.addNoise(
+                        originalSample: initLatentProper,
+                        noise: [noise],
+                        timeStep: noiseTimeStep
+                    )[0]
+                }
+                latent = MLShapedArray<Float>(unsafeUninitializedShape: latent.shape) { result, _ in
+                    mask.withUnsafeShapedBufferPointer { maskScalars, _, _ in
+                        latent.withUnsafeShapedBufferPointer { latentScalars, _, _ in
+                            initLatentProper.withUnsafeShapedBufferPointer { initScalars, _, _ in
+                                for i in 0..<result.count {
+                                    // (1 - init_mask) * init_latents_proper + init_mask * latents
+                                    let maskScalar = maskScalars[i % maskScalars.count]
+                                    result.initializeElement(
+                                        at: i,
+                                        to: (1 - maskScalar) * initScalars[i] + maskScalar * latentScalars[i]
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             // Report progress
             let progress = StableDiffusionProgress(
@@ -206,28 +248,78 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
         return image
     }
     
-    func generateLatentSample(input: SampleInput, generator: RandomGenerator, scheduler: Scheduler) throws -> MLShapedArray<Float32> {
+    func prepareLatent(
+        input: SampleInput,
+        generator: RandomGenerator,
+        scheduler: Scheduler
+    ) throws -> (MLShapedArray<Float32>, MLShapedArray<Float32>?, MLShapedArray<Float32>?) {
         var sampleShape = unet.latentSampleShape
         sampleShape[0] = 1
+        sampleShape[1] = 4
         
-        let sample: MLShapedArray<Float32>
-        if let image = input.initImage, input.strength != nil {
+        let latent: MLShapedArray<Float32>
+        let noise: MLShapedArray<Float32>?
+        var imageLatent: MLShapedArray<Float32>?
+        if let image = input.initImage, let strength = input.strength {
             guard let encoder else {
                 throw StableDiffusionError.encoderMissing
             }
-            let latent = try encoder.encode(image, generator: generator)
-            let noise: MLShapedArray<Float32> = generator.nextArray(shape: sampleShape, mean: 0, stdev: 1)
-            sample = scheduler.addNoise(originalSample: latent, noise: [noise])[0]
+            if unet.function != .inpaint || strength < 1 {
+                imageLatent = try encoder.encode(image, generator: generator)
+            }
+            if strength >= 1 {
+                let stdev = scheduler.initNoiseSigma
+                noise = generator.nextArray(shape: sampleShape, mean: 0, stdev: stdev)
+                latent = noise!
+            } else {
+                noise = generator.nextArray(shape: sampleShape, mean: 0, stdev: 1)
+                latent = scheduler.addNoise(originalSample: imageLatent!, noise: [noise!])[0]
+            }
         } else {
             let stdev = scheduler.initNoiseSigma
-            sample = generator.nextArray(shape: sampleShape, mean: 0, stdev: stdev)
+            latent = generator.nextArray(shape: sampleShape, mean: 0, stdev: stdev)
+            // Not needed for text to image
+            noise = nil
+            imageLatent = nil
         }
         
-        if reduceMemory {
-            encoder?.unloadResources()
+        return (latent, noise, imageLatent)
+    }
+    
+    func prepareMaskLatents(input: SampleInput, generator: RandomGenerator) throws -> (MLShapedArray<Float32>?, MLShapedArray<Float32>?) {
+        guard let image = input.initImage, let mask = input.inpaintMask else {
+            return (nil, nil)
+        }
+        guard let encoder else {
+            throw StableDiffusionError.encoderMissing
+        }
+        var imageData = image.toShapedArray()
+        var maskData = mask.toAlphaShapedArray()
+        imageData = MLShapedArray(unsafeUninitializedShape: imageData.shape) { result, _ in
+            imageData.withUnsafeShapedBufferPointer { image, _, _ in
+                maskData.withUnsafeShapedBufferPointer { mask, _, _ in
+                    for i in 0..<result.count {
+                        let maskScalar: Float32 = mask[i % mask.count] < 0.5 ? 1 : 0
+                        result.initializeElement(at: i, to: image[i] * maskScalar)
+                    }
+                }
+            }
         }
         
-        return sample
+        // Encode the mask image into latents space so we can concatenate it to the latents
+        var maskedImageLatent = try encoder.encode(imageData, generator: generator)
+        
+        let resizedMask = mask.scaledAspectFill(size: CGSize(width: maskedImageLatent.shape[3], height: maskedImageLatent.shape[2]))
+        maskData = resizedMask.toAlphaShapedArray()
+        
+        // Expand the latents for classifier-free guidance
+        // and input to the Unet noise prediction model
+        if unet.function == .inpaint {
+            maskData = MLShapedArray<Float32>(concatenating: [maskData, maskData], alongAxis: 0)
+        }
+        maskedImageLatent = MLShapedArray<Float32>(concatenating: [maskedImageLatent, maskedImageLatent], alongAxis: 0)
+        
+        return (maskData, maskedImageLatent)
     }
 
     func performGuidance(_ noise: [MLShapedArray<Float32>], guidanceScale: Float) -> [MLShapedArray<Float32>] {

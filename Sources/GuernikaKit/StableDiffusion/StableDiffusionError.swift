@@ -12,6 +12,7 @@ public enum StableDiffusionError: LocalizedError {
     case inputMissing
     case incompatibleTextEncoder
     case incompatibleControlNet
+    case missingInputs
     
     public var errorDescription: String? {
         switch self {
@@ -23,6 +24,8 @@ public enum StableDiffusionError: LocalizedError {
             return "This text encoder is not compatible with this model"
         case .incompatibleControlNet:
             return "This ControlNet is not compatible with this model"
+        case .missingInputs:
+            return "Necessary inputs missing"
         }
     }
 }

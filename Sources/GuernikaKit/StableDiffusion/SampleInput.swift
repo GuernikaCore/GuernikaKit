@@ -12,8 +12,8 @@ public struct SampleInput: Hashable {
     public var prompt: String
     public var negativePrompt: String
     public var initImage: CGImage?
-    public var strength: Float?
     public var inpaintMask: CGImage?
+    public var strength: Float?
     public var seed: UInt32
     public var stepCount: Int
     /// Controls the influence of the text prompt on sampling process (0=random images)
@@ -21,6 +21,7 @@ public struct SampleInput: Hashable {
     public var imageGuidanceScale: Float?
     public var scheduler: Schedulers = .pndm
     
+    // Text to image
     public init(
         prompt: String,
         negativePrompt: String = "",
@@ -40,10 +41,12 @@ public struct SampleInput: Hashable {
         self.scheduler = scheduler
     }
     
+    // Image to image and inpainting
     public init(
         prompt: String,
         negativePrompt: String = "",
-        initImage: CGImage?,
+        initImage: CGImage,
+        inpaintMask: CGImage? = nil,
         strength: Float = 0.75,
         seed: UInt32 = UInt32.random(in: 0...UInt32.max),
         stepCount: Int = 20,
@@ -53,18 +56,20 @@ public struct SampleInput: Hashable {
         self.prompt = prompt
         self.negativePrompt = negativePrompt
         self.initImage = initImage
+        self.inpaintMask = inpaintMask
         self.strength = strength
-        self.inpaintMask = nil
+        self.inpaintMask = inpaintMask
         self.seed = seed
         self.stepCount = stepCount
         self.guidanceScale = guidanceScale
         self.scheduler = scheduler
     }
     
+    // Instructions
     public init(
         prompt: String,
         negativePrompt: String = "",
-        initImage: CGImage?,
+        initImage: CGImage,
         seed: UInt32 = UInt32.random(in: 0...UInt32.max),
         stepCount: Int = 20,
         guidanceScale: Float = 7.5,
@@ -80,36 +85,17 @@ public struct SampleInput: Hashable {
         self.stepCount = stepCount
         self.guidanceScale = guidanceScale
         self.imageGuidanceScale = imageGuidanceScale
-        self.scheduler = scheduler
-    }
-    
-    public init(
-        prompt: String,
-        negativePrompt: String = "",
-        initImage: CGImage?,
-        inpaintMask: CGImage,
-        seed: UInt32 = UInt32.random(in: 0...UInt32.max),
-        stepCount: Int = 20,
-        guidanceScale: Float = 7.5,
-        scheduler: Schedulers = .pndm
-    ) {
-        self.prompt = prompt
-        self.negativePrompt = negativePrompt
-        self.initImage = initImage
-        self.strength = nil
-        self.inpaintMask = inpaintMask
-        self.seed = seed
-        self.stepCount = stepCount
-        self.guidanceScale = guidanceScale
         self.scheduler = scheduler
     }
 }
 
 public extension SampleInput {
+    // Image to image and inpainting
     init(
         prompt: String,
         negativePrompt: String = "",
         initImage: OSImage,
+        inpaintMask: OSImage? = nil,
         strength: Float = 0.75,
         seed: UInt32 = UInt32.random(in: 0...UInt32.max),
         stepCount: Int = 50,
@@ -120,13 +106,14 @@ public extension SampleInput {
         self.negativePrompt = negativePrompt
         self.initImage = initImage.cgImage!
         self.strength = strength
-        self.inpaintMask = nil
+        self.inpaintMask = inpaintMask?.cgImage!
         self.seed = seed
         self.stepCount = stepCount
         self.guidanceScale = guidanceScale
         self.scheduler = scheduler
     }
     
+    // Instructions
     init(
         prompt: String,
         negativePrompt: String = "",
@@ -146,48 +133,6 @@ public extension SampleInput {
         self.stepCount = stepCount
         self.guidanceScale = guidanceScale
         self.imageGuidanceScale = imageGuidanceScale
-        self.scheduler = scheduler
-    }
-    
-    init(
-        prompt: String,
-        negativePrompt: String = "",
-        initImage: OSImage,
-        inpaintMask: CGImage,
-        seed: UInt32 = UInt32.random(in: 0...UInt32.max),
-        stepCount: Int = 50,
-        guidanceScale: Float = 7.5,
-        scheduler: Schedulers = .pndm
-    ) {
-        self.prompt = prompt
-        self.negativePrompt = negativePrompt
-        self.initImage = initImage.cgImage!
-        self.strength = nil
-        self.inpaintMask = inpaintMask
-        self.seed = seed
-        self.stepCount = stepCount
-        self.guidanceScale = guidanceScale
-        self.scheduler = scheduler
-    }
-    
-    init(
-        prompt: String,
-        negativePrompt: String = "",
-        initImage: OSImage,
-        inpaintMask: OSImage,
-        seed: UInt32 = UInt32.random(in: 0...UInt32.max),
-        stepCount: Int = 50,
-        guidanceScale: Float = 7.5,
-        scheduler: Schedulers = .pndm
-    ) {
-        self.prompt = prompt
-        self.negativePrompt = negativePrompt
-        self.initImage = initImage.cgImage!
-        self.strength = nil
-        self.inpaintMask = inpaintMask.cgImage!
-        self.seed = seed
-        self.stepCount = stepCount
-        self.guidanceScale = guidanceScale
         self.scheduler = scheduler
     }
 }

@@ -68,18 +68,6 @@ public enum GuernikaKit {
                 safetyChecker: safetyChecker,
                 reduceMemory: reduceMemory
             )
-        case .inpaint:
-            let textEncoder = try TextEncoder(modelAt: textEncoderUrl, configuration: unet.configuration)
-            let encoder = try Encoder(modelAt: encoderUrl, configuration: unet.configuration)
-            return StableDiffusionInpaintPipeline(
-                baseUrl: baseUrl,
-                textEncoder: textEncoder,
-                encoder: encoder,
-                unet: unet,
-                decoder: decoder,
-                safetyChecker: safetyChecker,
-                reduceMemory: reduceMemory
-            )
         case .instructions:
             let textEncoder = try TextEncoder(modelAt: textEncoderUrl, configuration: unet.configuration)
             let encoder = try Encoder(modelAt: encoderUrl, configuration: unet.configuration)

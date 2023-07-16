@@ -57,6 +57,8 @@ public class Encoder {
         generator: RandomGenerator
     ) throws -> MLShapedArray<Float32> {
         if let cachedLatent = cache[image] {
+            // Run the generator to simulate encoder using the generator
+            let _ = generator.nextArray(shape: cachedLatent.shape)
             return cachedLatent
         }
         let resizedImage = image.scaledAspectFill(size: sampleSize)

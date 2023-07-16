@@ -135,9 +135,9 @@ public class StableDiffusionPix2PixPipeline: StableDiffusionPipeline {
         )
 
         // Generate random latent sample from specified seed
-        var latent = try generateLatentSample(generator: generator, scheduler: scheduler)
+        var latent = try prepareLatent(generator: generator, scheduler: scheduler)
         // Prepare image latent for instructions
-        let imageLatent = try generateImageLatent(input: input, generator: generator)
+        let imageLatent = try prepareImageLatent(input: input, generator: generator)
 
         // De-noising loop
         for (step, t) in scheduler.timeSteps.enumerated() {
@@ -209,7 +209,7 @@ public class StableDiffusionPix2PixPipeline: StableDiffusionPipeline {
         return image
     }
     
-    func generateLatentSample(generator: RandomGenerator, scheduler: Scheduler) throws -> MLShapedArray<Float32> {
+    func prepareLatent(generator: RandomGenerator, scheduler: Scheduler) throws -> MLShapedArray<Float32> {
         var sampleShape = unet.latentSampleShape
         sampleShape[0] = 1
         sampleShape[1] = 4
@@ -218,7 +218,7 @@ public class StableDiffusionPix2PixPipeline: StableDiffusionPipeline {
         return generator.nextArray(shape: sampleShape, mean: 0, stdev: stdev)
     }
     
-    func generateImageLatent(input: SampleInput, generator: RandomGenerator) throws -> MLShapedArray<Float32> {
+    func prepareImageLatent(input: SampleInput, generator: RandomGenerator) throws -> MLShapedArray<Float32> {
         guard let image = input.initImage, input.imageGuidanceScale != nil else {
             throw StableDiffusionError.inputMissing
         }
