@@ -180,7 +180,7 @@ public class StableDiffusionPix2PixPipeline: StableDiffusionPipeline {
                 input: input,
                 step: step,
                 stepCount: scheduler.timeSteps.count - 1,
-                currentLatentSample: latent
+                currentLatentSample: scheduler.modelOutputs.last ?? latent
             )
             if !progressHandler(progress) {
                 // Stop if requested by handler
