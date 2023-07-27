@@ -6,6 +6,8 @@
 //
 
 import CoreML
+import CoreImage
+import Accelerate
 import Foundation
 
 public protocol StableDiffusionPipeline: DiffusionPipeline {
@@ -42,6 +44,10 @@ public protocol StableDiffusionPipeline: DiffusionPipeline {
     ) throws -> CGImage?
     
     func decodeToImage(_ latent: MLShapedArray<Float32>) throws -> CGImage?
+    
+    var latentRGBFactors: [[Float]] { get }
+    
+    func latentToImage(_ latent: MLShapedArray<Float32>) -> CGImage?
 }
 
 /// Sampling progress details
@@ -51,12 +57,15 @@ public struct StableDiffusionProgress {
     public let step: Int
     public let stepCount: Int
     public let currentLatentSample: MLShapedArray<Float32>
-    public var currentImage: CGImage? {
+    public var latentImage: CGImage? {
+        pipeline.latentToImage(currentLatentSample)
+    }
+    public var decodedImage: CGImage? {
         do {
             return try pipeline.decodeToImage(currentLatentSample)
         } catch {
             print("Error decoding progress images", error.localizedDescription)
-            return nil
+            return latentImage
         }
     }
 }
@@ -142,5 +151,104 @@ extension StableDiffusionPipeline {
         // Otherwise change images which are not safe to nil
         let safeImage = try safetyChecker.isSafe(image) ? image : nil
         return safeImage
+    }
+    
+    // https://discuss.huggingface.co/t/decoding-latents-to-rgb-without-upscaling/23204/12
+    public var latentRGBFactors: [[Float]] {[
+        //  R       G       B
+        [ 0.298,  0.207,  0.208],  // L1
+        [ 0.187,  0.286,  0.173],  // L2
+        [-0.158,  0.189,  0.264],  // L3
+        [-0.184, -0.271, -0.473],  // L4
+    ]}
+    
+    typealias PixelBufferPFx1 = vImage.PixelBuffer<vImage.PlanarF>
+    typealias PixelBufferP8x3 = vImage.PixelBuffer<vImage.Planar8x3>
+    typealias PixelBufferIFx3 = vImage.PixelBuffer<vImage.InterleavedFx3>
+    typealias PixelBufferI8x3 = vImage.PixelBuffer<vImage.Interleaved8x3>
+    
+    public func latentToImage(_ latent: MLShapedArray<Float32>) -> CGImage? {
+        // array is [N,C,H,W], where C==4
+        let channelCount = latent.shape[1]
+        let height = latent.shape[2]
+        let width = latent.shape[3]
+        
+        let red = PixelBufferPFx1(width: width, height: height)
+        let green = PixelBufferPFx1(width: width, height: height)
+        let blue = PixelBufferPFx1(width: width, height: height)
+        
+        let latentRGBFactors: [[Float]] = latentRGBFactors
+        
+        let stride = vDSP_Stride(1)
+        // Reference this channel in the array and normalize
+        latent[0][0].withUnsafeShapedBufferPointer { channelPtr, _, strides in
+            let cIn = PixelBufferPFx1(data: .init(mutating: channelPtr.baseAddress!),
+                                      width: width, height: height,
+                                      byteCountPerRow: strides[0]*4)
+            // Map [-1.0 1.0] -> [0.0 1.0]
+            cIn.multiply(by: latentRGBFactors[0][0], preBias: 0.0, postBias: 0.0, destination: red)
+            cIn.multiply(by: latentRGBFactors[0][1], preBias: 0.0, postBias: 0.0, destination: green)
+            cIn.multiply(by: latentRGBFactors[0][2], preBias: 0.0, postBias: 0.0, destination: blue)
+        }
+        latent[0][1].withUnsafeShapedBufferPointer { channel1Ptr, _, _ in
+            latent[0][2].withUnsafeShapedBufferPointer { channel2Ptr, _, _ in
+                latent[0][3].withUnsafeShapedBufferPointer { channel3Ptr, _, _ in
+                    red.withUnsafeMutableBufferPointer { ptr in
+                        for i in 0..<ptr.count {
+                            ptr[i] = ptr[i] + (channel1Ptr[i] * latentRGBFactors[1][0]) + (channel2Ptr[i] * latentRGBFactors[2][0])
+                                + (channel3Ptr[i] * latentRGBFactors[3][0])
+                            ptr[i] = min(1, max(0, (ptr[i] + 1) / 2))
+                        }
+                    }
+                }
+            }
+        }
+        latent[0][1].withUnsafeShapedBufferPointer { channel1Ptr, _, _ in
+            latent[0][2].withUnsafeShapedBufferPointer { channel2Ptr, _, _ in
+                latent[0][3].withUnsafeShapedBufferPointer { channel3Ptr, _, _ in
+                    green.withUnsafeMutableBufferPointer { ptr in
+                        for i in 0..<ptr.count {
+                            ptr[i] = ptr[i] + (channel1Ptr[i] * latentRGBFactors[1][1]) + (channel2Ptr[i] * latentRGBFactors[2][1])
+                            + (channel3Ptr[i] * latentRGBFactors[3][1])
+                            ptr[i] = min(1, max(0, (ptr[i] + 1) / 2))
+                        }
+                    }
+                }
+            }
+        }
+        latent[0][1].withUnsafeShapedBufferPointer { channel1Ptr, _, _ in
+            latent[0][2].withUnsafeShapedBufferPointer { channel2Ptr, _, _ in
+                latent[0][3].withUnsafeShapedBufferPointer { channel3Ptr, _, _ in
+                    blue.withUnsafeMutableBufferPointer { ptr in
+                        for i in 0..<ptr.count {
+                            ptr[i] = ptr[i] + (channel1Ptr[i] * latentRGBFactors[1][2]) + (channel2Ptr[i] * latentRGBFactors[2][2])
+                                + (channel3Ptr[i] * latentRGBFactors[3][2])
+                            ptr[i] = min(1, max(0, (ptr[i] + 1) / 2))
+                        }
+                    }
+                }
+            }
+        }
+        let floatChannels = [red, green, blue]
+        // Convert to interleaved and then to UInt8
+        let floatImage = PixelBufferIFx3(planarBuffers: floatChannels)
+        let uint8Image = PixelBufferI8x3(width: width, height: height)
+        floatImage.convert(to: uint8Image) // maps [0.0 1.0] -> [0 255] and clips
+        
+        // Convert to uint8x3 to RGB CGImage (no alpha)
+        let bitmapInfo = CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue)
+        let cgImage = uint8Image.makeCGImage(cgImageFormat:
+                .init(bitsPerComponent: 8,
+                      bitsPerPixel: 3*8,
+                      colorSpace: CGColorSpaceCreateDeviceRGB(),
+                      bitmapInfo: bitmapInfo)!)!
+        
+        guard let filter = CIFilter(name: "CIColorControls") else { return cgImage }
+        filter.setValue(CIImage(cgImage: cgImage), forKey: kCIInputImageKey)
+        filter.setValue(1.4, forKey: kCIInputSaturationKey)
+        filter.setValue(1.1, forKey: kCIInputContrastKey)
+        guard let result = filter.value(forKey: kCIOutputImageKey) as? CIImage else { return cgImage }
+        guard let newCgImage = CIContext(options: nil).createCGImage(result, from: result.extent) else { return cgImage }
+        return newCgImage
     }
 }

@@ -72,6 +72,14 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
             safetyChecker?.configuration = configuration
         }
     }
+    
+    public var latentRGBFactors: [[Float]] {[
+        //    R           G           B
+        [ 4.081e-01,  4.462e-01,  4.720e-01],  // L1
+        [-2.857e-01,  3.167e-02, -3.883e-02],  // L2
+        [ 7.361e-02,  1.338e-01, -2.297e-03],  // L3
+        [-4.095e-01, -2.171e-01, -2.211e-01],  // L4
+    ]}
 
     /// Creates a pipeline using the specified models and tokenizer
     ///
