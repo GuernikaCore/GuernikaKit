@@ -50,7 +50,9 @@ public class StableDiffusionPix2PixPipeline: StableDiffusionPipeline {
     /// when needed and aggressively unload their resources after
     ///
     /// This will increase latency in favor of reducing memory
-    public var reduceMemory: Bool = false
+    public var reduceMemory: Bool = false {
+        didSet { unet.reduceMemory = reduceMemory }
+    }
     
     public var computeUnits: ComputeUnits {
         didSet {
@@ -88,6 +90,7 @@ public class StableDiffusionPix2PixPipeline: StableDiffusionPipeline {
         self.textEncoder = textEncoder
         self.encoder = encoder
         self.unet = unet
+        unet.reduceMemory = reduceMemory
         self.decoder = decoder
         self.safetyChecker = safetyChecker
         self.computeUnits = computeUnits

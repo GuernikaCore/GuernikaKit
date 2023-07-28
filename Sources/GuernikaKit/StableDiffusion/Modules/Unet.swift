@@ -37,7 +37,7 @@ public class Unet {
     ///
     /// It can be in the form of a single model or multiple stages
     let models: [ManagedMLModel]
-    let reduceMemory: Bool
+    var reduceMemory: Bool = false
     var configuration: MLModelConfiguration {
         get { models[0].configuration }
         set {
@@ -65,8 +65,8 @@ public class Unet {
     ///   - url: Location of single U-Net  compiled Core ML model
     ///   - configuration: Configuration to be used when the model is loaded
     /// - Returns: U-net model that will lazily load its required resources when needed or requested
-    public convenience init(modelAt url: URL, reduceMemory: Bool, configuration: MLModelConfiguration? = nil) throws {
-        try self.init(chunksAt: [url], reduceMemory: reduceMemory, configuration: configuration)
+    public convenience init(modelAt url: URL, configuration: MLModelConfiguration? = nil) throws {
+        try self.init(chunksAt: [url], configuration: configuration)
     }
 
     /// Creates a U-Net noise prediction model
@@ -75,7 +75,7 @@ public class Unet {
     ///   - urls: Location of chunked U-Net via urls to each compiled chunk
     ///   - configuration: Configuration to be used when the model is loaded
     /// - Returns: U-net model that will lazily load its required resources when needed or requested
-    public init(chunksAt urls: [URL], reduceMemory: Bool, configuration: MLModelConfiguration? = nil) throws {
+    public init(chunksAt urls: [URL], configuration: MLModelConfiguration? = nil) throws {
         let metadata = try CoreMLMetadata.metadataForModel(at: urls[0])
         timestepShape = metadata.inputSchema[name: "timestep"]!.shape
         let sampleShape = metadata.inputSchema[name: "sample"]!.shape
@@ -109,7 +109,6 @@ public class Unet {
         
         let configuration = configuration ?? attentionImplementation.preferredModelConfiguration
         self.models = urls.map { ManagedMLModel(modelAt: $0, configuration: configuration) }
-        self.reduceMemory = reduceMemory
     }
 
     /// Unload the underlying model to free up memory

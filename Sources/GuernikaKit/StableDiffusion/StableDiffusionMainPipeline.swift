@@ -50,7 +50,9 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
     /// when needed and aggressively unload their resources after
     ///
     /// This will increase latency in favor of reducing memory
-    public var reduceMemory: Bool = false
+    public var reduceMemory: Bool = false {
+        didSet { unet.reduceMemory = reduceMemory }
+    }
     
     /// Reports whether this pipeline can perform image to image
     public var canGenerateVariations: Bool {
@@ -93,6 +95,7 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
         self.textEncoder = textEncoder
         self.encoder = encoder
         self.unet = unet
+        unet.reduceMemory = reduceMemory
         self.decoder = decoder
         self.safetyChecker = safetyChecker
         self.computeUnits = computeUnits
