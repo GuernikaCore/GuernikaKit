@@ -19,7 +19,14 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
     public let baseUrl: URL
     /// Model to generate embeddings for tokenized input text
     public let textEncoder: TextEncoder
-    public var overrideTextEncoder: TextEncoder?
+    public var overrideTextEncoder: TextEncoder? {
+        didSet {
+            oldValue?.unloadResources(clearCache: true)
+            if overrideTextEncoder != nil {
+                textEncoder.unloadResources(clearCache: true)
+            }
+        }
+    }
     /// Model used to generate initial image for latent diffusion process
     var encoder: Encoder? = nil
     /// Models used to control diffusion models by adding extra conditions

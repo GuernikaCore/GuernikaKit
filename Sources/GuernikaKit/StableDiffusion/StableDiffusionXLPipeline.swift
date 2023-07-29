@@ -20,8 +20,22 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
     /// Models to generate embeddings for tokenized input text
     public let textEncoder: TextEncoder
     public let textEncoder2: TextEncoder
-    public var overrideTextEncoder: TextEncoder?
-    public var overrideTextEncoder2: TextEncoder?
+    public var overrideTextEncoder: TextEncoder? {
+        didSet {
+            oldValue?.unloadResources(clearCache: true)
+            if overrideTextEncoder != nil {
+                textEncoder.unloadResources(clearCache: true)
+            }
+        }
+    }
+    public var overrideTextEncoder2: TextEncoder? {
+        didSet {
+            oldValue?.unloadResources(clearCache: true)
+            if overrideTextEncoder2 != nil {
+                textEncoder2.unloadResources(clearCache: true)
+            }
+        }
+    }
     /// Model used to generate initial image for latent diffusion process
     var encoder: Encoder? = nil
     /// Models used to control diffusion models by adding extra conditions
