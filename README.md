@@ -1,6 +1,6 @@
 # GuernikaKit
 <p align="center">
-<img height="256" width="256" src="https://github.com/GuernikaCore/GuernikaKit/assets/289797/1fdb4afe-6b19-4806-86a0-509508abf330" />
+<img height="256" width="256" src="https://github.com/GuernikaCore/GuernikaKit/blob/main/GuernikaKit.png" />
 </p>
 
 GuernikaKit allows running Stable Diffusion 1.X, Stable Diffusion 2.X and Stable Diffusion XL models on Apple Silicon with Core ML converted using [Guernika Model Converter](https://github.com/GuernikaCore/GuernikaModelConverter).
