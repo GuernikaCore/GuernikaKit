@@ -122,7 +122,9 @@ public class ControlNet {
         input: Input,
         latent: MLShapedArray<Float32>,
         timeStep: Double,
-        hiddenStates: MLShapedArray<Float32>
+        hiddenStates: MLShapedArray<Float32>,
+        textEmbeddings: MLShapedArray<Float32>? = nil,
+        timeIds: MLShapedArray<Float32>? = nil
     ) throws -> ([MLShapedArray<Float32>], MLShapedArray<Float32>)? {
         guard let imageData = input.imageData, input.conditioningScale > 0 else { return nil }
         
@@ -134,12 +136,16 @@ public class ControlNet {
             // Match time step batch dimension to the model / latent samples
             let t = MLShapedArray<Float32>(repeating: Float32(timeStep), shape: timestepShape)
             
-            let dict: [String: Any] = [
+            var dict: [String: Any] = [
                 "sample" : MLMultiArray(latent),
                 "timestep" : MLMultiArray(t),
                 "encoder_hidden_states": MLMultiArray(hiddenStates),
                 "controlnet_cond": MLMultiArray(imageData)
             ]
+            if let textEmbeddings, let timeIds {
+                dict["text_embeds"] = MLMultiArray(textEmbeddings)
+                dict["time_ids"] = MLMultiArray(timeIds)
+            }
             let input = try MLDictionaryFeatureProvider(dictionary: dict)
             return try model.prediction(from: input)
         }
@@ -160,13 +166,14 @@ public class ControlNet {
             result.featureValue(for: "down_block_res_samples_06")!.multiArrayValue!,
             result.featureValue(for: "down_block_res_samples_07")!.multiArrayValue!,
             result.featureValue(for: "down_block_res_samples_08")!.multiArrayValue!,
-            result.featureValue(for: "down_block_res_samples_09")!.multiArrayValue!,
-            result.featureValue(for: "down_block_res_samples_10")!.multiArrayValue!,
-            result.featureValue(for: "down_block_res_samples_11")!.multiArrayValue!,
+            result.featureValue(for: "down_block_res_samples_09")?.multiArrayValue,
+            result.featureValue(for: "down_block_res_samples_10")?.multiArrayValue,
+            result.featureValue(for: "down_block_res_samples_11")?.multiArrayValue,
         ]
-        let downResFp32Noise = downResNoise.map {
+        let downResFp32Noise: [MLShapedArray<Float32>] = downResNoise.compactMap { sample in
+            guard let sample else { return nil }
             var noise = MLShapedArray<Float32>(MLMultiArray(
-                concatenating: [$0],
+                concatenating: [sample],
                 axis: 0,
                 dataType: .float32
             ))
@@ -189,11 +196,18 @@ extension Array where Element == ControlNet.Input {
     func predictResiduals(
         latent: MLShapedArray<Float32>,
         timeStep: Double,
-        hiddenStates: MLShapedArray<Float32>
+        hiddenStates: MLShapedArray<Float32>,
+        textEmbeddings: MLShapedArray<Float32>? = nil,
+        timeIds: MLShapedArray<Float32>? = nil
     ) throws -> ([MLShapedArray<Float32>], MLShapedArray<Float32>)? {
         try compactMap { input in
             try input.controlNet.predictResiduals(
-                input: input, latent: latent, timeStep: timeStep, hiddenStates: hiddenStates
+                input: input,
+                latent: latent,
+                timeStep: timeStep,
+                hiddenStates: hiddenStates,
+                textEmbeddings: textEmbeddings, 
+                timeIds: timeIds
             )
         }.addResiduals()
     }

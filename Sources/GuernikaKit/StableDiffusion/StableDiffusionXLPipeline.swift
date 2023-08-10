@@ -208,7 +208,9 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
             let additionalResiduals = try controlNets.predictResiduals(
                 latent: latentUnetInput,
                 timeStep: t,
-                hiddenStates: hiddenStates
+                hiddenStates: hiddenStates,
+                textEmbeddings: addedTextEmbeddings,
+                timeIds: timeIds
             )
 
             // Predict noise residuals from latent samples

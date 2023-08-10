@@ -143,25 +143,17 @@ public class Unet {
                 var dict: [String: Any] = [
                     "sample" : MLMultiArray(latent),
                     "timestep" : MLMultiArray(t),
-                    "encoder_hidden_states": MLMultiArray(hiddenStates),
-                    "down_block_res_samples_00": MLMultiArray(residuals.0[0]),
-                    "down_block_res_samples_01": MLMultiArray(residuals.0[1]),
-                    "down_block_res_samples_02": MLMultiArray(residuals.0[2]),
-                    "down_block_res_samples_03": MLMultiArray(residuals.0[3]),
-                    "down_block_res_samples_04": MLMultiArray(residuals.0[4]),
-                    "down_block_res_samples_05": MLMultiArray(residuals.0[5]),
-                    "down_block_res_samples_06": MLMultiArray(residuals.0[6]),
-                    "down_block_res_samples_07": MLMultiArray(residuals.0[7]),
-                    "down_block_res_samples_08": MLMultiArray(residuals.0[8]),
-                    "down_block_res_samples_09": MLMultiArray(residuals.0[9]),
-                    "down_block_res_samples_10": MLMultiArray(residuals.0[10]),
-                    "down_block_res_samples_11": MLMultiArray(residuals.0[11]),
-                    "mid_block_res_sample": MLMultiArray(residuals.1)
+                    "encoder_hidden_states": MLMultiArray(hiddenStates)
                 ]
                 if let textEmbeddings, let timeIds {
                     dict["text_embeds"] = MLMultiArray(textEmbeddings)
                     dict["time_ids"] = MLMultiArray(timeIds)
                 }
+                
+                for (index, residual) in residuals.0.enumerated() {
+                    dict[String(format: "down_block_res_samples_%02d", index)] = MLMultiArray(residual)
+                }
+                dict["mid_block_res_sample"] = MLMultiArray(residuals.1)
                 return try MLDictionaryFeatureProvider(dictionary: dict)
             }
         } else {
@@ -171,27 +163,19 @@ public class Unet {
                     "timestep" : MLMultiArray(t),
                     "encoder_hidden_states": MLMultiArray(hiddenStates)
                 ]
-                if supportsControlNet {
-                    try models.first?.perform { model in
-                        let inputDescriptions = model.modelDescription.inputDescriptionsByName
-                        dict["down_block_res_samples_00"] = inputDescriptions["down_block_res_samples_00"]?.emptyValue
-                        dict["down_block_res_samples_01"] = inputDescriptions["down_block_res_samples_01"]?.emptyValue
-                        dict["down_block_res_samples_02"] = inputDescriptions["down_block_res_samples_02"]?.emptyValue
-                        dict["down_block_res_samples_03"] = inputDescriptions["down_block_res_samples_03"]?.emptyValue
-                        dict["down_block_res_samples_04"] = inputDescriptions["down_block_res_samples_04"]?.emptyValue
-                        dict["down_block_res_samples_05"] = inputDescriptions["down_block_res_samples_05"]?.emptyValue
-                        dict["down_block_res_samples_06"] = inputDescriptions["down_block_res_samples_06"]?.emptyValue
-                        dict["down_block_res_samples_07"] = inputDescriptions["down_block_res_samples_07"]?.emptyValue
-                        dict["down_block_res_samples_08"] = inputDescriptions["down_block_res_samples_08"]?.emptyValue
-                        dict["down_block_res_samples_09"] = inputDescriptions["down_block_res_samples_09"]?.emptyValue
-                        dict["down_block_res_samples_10"] = inputDescriptions["down_block_res_samples_10"]?.emptyValue
-                        dict["down_block_res_samples_11"] = inputDescriptions["down_block_res_samples_11"]?.emptyValue
-                        dict["mid_block_res_sample"]      = inputDescriptions["mid_block_res_sample"]?.emptyValue
-                    }
-                }
                 if let textEmbeddings, let timeIds {
                     dict["text_embeds"] = MLMultiArray(textEmbeddings)
                     dict["time_ids"] = MLMultiArray(timeIds)
+                }
+                
+                if supportsControlNet {
+                    try models.first?.perform { model in
+                        let inputDescriptions = model.modelDescription.inputDescriptionsByName
+                        for input in inputDescriptions {
+                            guard dict[input.key] == nil else { continue }
+                            dict[input.key] = input.value.emptyValue
+                        }
+                    }
                 }
                 return try MLDictionaryFeatureProvider(dictionary: dict)
             }
