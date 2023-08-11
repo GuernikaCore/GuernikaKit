@@ -18,6 +18,7 @@ public protocol StableDiffusionPipeline: DiffusionPipeline {
     
     /// Models used to control diffusion models by adding extra conditions
     var controlNets: [ControlNet.Input] { get set }
+    var supportsControlNet: Bool { get }
     
     /// Model used to predict noise residuals given an input, diffusion time step, and conditional embedding
     var unet: Unet { get }

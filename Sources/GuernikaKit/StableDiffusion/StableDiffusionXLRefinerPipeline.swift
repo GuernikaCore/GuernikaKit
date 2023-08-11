@@ -30,12 +30,8 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
     /// Model used to generate initial image for latent diffusion process
     var encoder: Encoder? = nil
     /// Models used to control diffusion models by adding extra conditions
-    public var controlNets: [ControlNet.Input] = [] {
-        didSet {
-            // Only allow compatible ControlNets
-            controlNets = controlNets.filter { $0.controlNet.hiddenSize == unet.hiddenSize }
-        }
-    }
+    public var controlNets: [ControlNet.Input] = []
+    public var supportsControlNet: Bool { false }
     /// Model used to predict noise residuals given an input, diffusion time step, and conditional embedding
     public var unet: Unet
     /// Model used to generate final image from latent diffusion process
@@ -123,7 +119,6 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
         overrideTextEncoder?.unloadResources(clearCache: true)
         encoder?.unloadResources(clearCache: true)
         unet.unloadResources()
-        controlNets.forEach { $0.controlNet.unloadResources() }
         decoder.unloadResources()
         safetyChecker?.unloadResources()
     }
@@ -196,18 +191,12 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
                 // Concat mask in case we are doing inpainting
                 latentUnetInput = MLShapedArray<Float32>(concatenating: [latentUnetInput, mask, maskedImage], alongAxis: 1)
             }
-            
-            let additionalResiduals = try controlNets.predictResiduals(
-                latent: latentUnetInput,
-                timeStep: t,
-                hiddenStates: hiddenStates
-            )
 
             // Predict noise residuals from latent samples
             // and current time step conditioned on hidden states
             var noisePrediction = try unet.predictNoise(
                 latents: [latentUnetInput],
-                additionalResiduals: additionalResiduals.map { [$0] },
+                additionalResiduals: nil,
                 timeStep: t,
                 hiddenStates: hiddenStates,
                 textEmbeddings: addedTextEmbeddings,
@@ -268,7 +257,6 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
         }
         
         if reduceMemory {
-            controlNets.forEach { $0.controlNet.unloadResources() }
             unet.unloadResources()
         }
 
