@@ -41,16 +41,11 @@ public class ControlNet {
         public let id: UUID = UUID()
         public let controlNet: ControlNet
         public var method: Method { controlNet.method }
-        public var sampleSize: CGSize { controlNet.sampleSize }
         public var conditioningScale: Float = 1.0
         public var image: CGImage? {
             didSet {
-                let resizedImage = image?.scaledAspectFill(size: sampleSize)
-                if let data = resizedImage?.toShapedArray(min: 0.0) {
-                    imageData = MLShapedArray<Float32>(concatenating: [data, data], alongAxis: 0)
-                } else {
-                    imageData = nil
-                }
+                // Reset imageData, it will be updated when run with the correct size
+                imageData = nil
             }
         }
         var imageData: MLShapedArray<Float32>?
@@ -74,6 +69,8 @@ public class ControlNet {
     public let attentionImplementation: AttentionImplementation
     public let method: Method
     public let sampleSize: CGSize
+    public let minimumSize: CGSize
+    public let maximumSize: CGSize
     public let hiddenSize: Int
     
     /// Creates a U-Net noise prediction model
@@ -85,8 +82,17 @@ public class ControlNet {
     public init(modelAt url: URL, configuration: MLModelConfiguration? = nil) throws {
         self.url = url
         let metadata = try CoreMLMetadata.metadataForModel(at: url)
-        let sampleShape = metadata.inputSchema[name: "controlnet_cond"]!.shape
+        let condInput = metadata.inputSchema[name: "controlnet_cond"]!
+        let sampleShape = condInput.shape
         sampleSize = CGSize(width: sampleShape[3], height: sampleShape[2])
+        if condInput.hasShapeFlexibility {
+            minimumSize = CGSize(width: condInput.shapeRange[3][0], height: condInput.shapeRange[2][0])
+            maximumSize = CGSize(width: condInput.shapeRange[3][1], height: condInput.shapeRange[2][1])
+        } else {
+            minimumSize = sampleSize
+            maximumSize = sampleSize
+        }
+        
         hiddenSize = metadata.hiddenSize!
         attentionImplementation = metadata.attentionImplementation
         
@@ -126,7 +132,15 @@ public class ControlNet {
         textEmbeddings: MLShapedArray<Float32>? = nil,
         timeIds: MLShapedArray<Float32>? = nil
     ) throws -> ([MLShapedArray<Float32>], MLShapedArray<Float32>)? {
-        guard let imageData = input.imageData, input.conditioningScale > 0 else { return nil }
+        guard let image = input.image, input.conditioningScale > 0 else { return nil }
+        
+        if input.imageData?.shape[2] != latent.shape[2] * 8 || input.imageData?.shape[3] != latent.shape[3] * 8 {
+            let inputSize = CGSize(width: latent.shape[3] * 8, height: latent.shape[2] * 8)
+            let resizedImage = image.scaledAspectFill(size: inputSize)
+            let data = resizedImage.toShapedArray(min: 0.0)
+            input.imageData = MLShapedArray<Float32>(concatenating: [data, data], alongAxis: 0)
+        }
+        guard let imageData = input.imageData else { return nil }
         
         // Batch predict with model
         let result = try model.perform { model in

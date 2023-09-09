@@ -39,6 +39,12 @@ public extension CGSize {
         }
         return (offset, scaledSize)
     }
+    
+    func isBetween(min: CGSize, max: CGSize) -> Bool {
+        guard height >= min.height, height <= max.height else { return false }
+        guard width >= min.width, width <= max.width else { return false }
+        return true
+    }
 }
 
 extension CGSize: Hashable {

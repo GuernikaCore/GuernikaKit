@@ -69,7 +69,7 @@ public class Decoder {
             let outputName = result.featureNames.first!
             let output = result.featureValue(for: outputName)!.multiArrayValue!
             
-            return toRGBCGImage(MLShapedArray<Float32>(output))
+            return toRGBCGImage(MLShapedArray<Float32>(converting: output))
         }
         
         return images

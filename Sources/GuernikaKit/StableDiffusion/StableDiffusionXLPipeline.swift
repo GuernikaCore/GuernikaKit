@@ -305,6 +305,18 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
         var sampleShape = unet.latentSampleShape
         sampleShape[0] = 1
         sampleShape[1] = 4
+        if let size = input.size {
+            guard size.isBetween(min: unet.minimumSize, max: unet.maximumSize) else {
+                throw StableDiffusionError.incompatibleSize
+            }
+            var newHeight = Int(size.height / 8)
+            var newWidth = Int(size.width / 8)
+            // Sample shape size must be divisible by 8
+            newHeight -= (newHeight % 8)
+            newWidth -= (newWidth % 8)
+            sampleShape[2] = newHeight
+            sampleShape[3] = newWidth
+        }
         
         let latent: MLShapedArray<Float32>
         let noise: MLShapedArray<Float32>?

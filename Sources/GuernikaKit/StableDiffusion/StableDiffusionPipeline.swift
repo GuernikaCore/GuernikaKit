@@ -76,6 +76,9 @@ extension StableDiffusionPipeline {
     public var maximumTokensAllowed: Int { textEncoder.maxInputLength }
     /// Unet sample size
     public var sampleSize: CGSize { unet.sampleSize }
+    public var minimumSize: CGSize { unet.minimumSize }
+    public var maximumSize: CGSize { unet.maximumSize }
+    public var allowsVariableSize: Bool { unet.minimumSize != unet.maximumSize }
     public var supportsControlNet: Bool { unet.supportsControlNet }
     
     /// Reports whether this pipeline can perform safety checks

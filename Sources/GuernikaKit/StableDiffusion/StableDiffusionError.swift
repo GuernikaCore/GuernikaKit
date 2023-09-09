@@ -10,16 +10,19 @@ import Foundation
 public enum StableDiffusionError: LocalizedError {
     case encoderMissing
     case inputMissing
+    case incompatibleSize
     case incompatibleTextEncoder
     case incompatibleControlNet
     case missingInputs
     
     public var errorDescription: String? {
         switch self {
-        case .inputMissing:
-            return "Some required innputs were missing"
         case .encoderMissing:
             return "No encoder was found"
+        case .inputMissing:
+            return "Some required innputs were missing"
+        case .incompatibleSize:
+            return "Incompatible output size"
         case .incompatibleTextEncoder:
             return "This text encoder is not compatible with this model"
         case .incompatibleControlNet:

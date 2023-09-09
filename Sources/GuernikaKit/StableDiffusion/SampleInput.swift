@@ -9,6 +9,7 @@ import Schedulers
 import CoreGraphics
 
 public struct SampleInput: Hashable {
+    public var size: CGSize?
     public var prompt: String
     public var negativePrompt: String
     public var initImage: CGImage?
@@ -23,6 +24,7 @@ public struct SampleInput: Hashable {
     
     // Text to image
     public init(
+        size: CGSize? = nil,
         prompt: String,
         negativePrompt: String = "",
         seed: UInt32 = UInt32.random(in: 0...UInt32.max),
@@ -30,6 +32,7 @@ public struct SampleInput: Hashable {
         guidanceScale: Float = 7.5,
         scheduler: Schedulers = .pndm
     ) {
+        self.size = size
         self.prompt = prompt
         self.negativePrompt = negativePrompt
         self.initImage = nil
@@ -53,6 +56,7 @@ public struct SampleInput: Hashable {
         guidanceScale: Float = 7.5,
         scheduler: Schedulers = .pndm
     ) {
+        self.size = CGSize(width: initImage.width, height: initImage.height)
         self.prompt = prompt
         self.negativePrompt = negativePrompt
         self.initImage = initImage
@@ -76,6 +80,7 @@ public struct SampleInput: Hashable {
         imageGuidanceScale: Float = 1.5,
         scheduler: Schedulers = .pndm
     ) {
+        self.size = CGSize(width: initImage.width, height: initImage.height)
         self.prompt = prompt
         self.negativePrompt = negativePrompt
         self.initImage = initImage
@@ -102,6 +107,7 @@ public extension SampleInput {
         guidanceScale: Float = 7.5,
         scheduler: Schedulers = .pndm
     ) {
+        self.size = initImage.size
         self.prompt = prompt
         self.negativePrompt = negativePrompt
         self.initImage = initImage.cgImage!
@@ -124,6 +130,7 @@ public extension SampleInput {
         imageGuidanceScale: Float = 1.5,
         scheduler: Schedulers = .pndm
     ) {
+        self.size = initImage.size
         self.prompt = prompt
         self.negativePrompt = negativePrompt
         self.initImage = initImage.cgImage!

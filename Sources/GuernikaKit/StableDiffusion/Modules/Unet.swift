@@ -56,6 +56,8 @@ public class Unet {
     let timestepShape: [Int]
     let latentSampleShape: [Int]
     public let sampleSize: CGSize
+    public let minimumSize: CGSize
+    public let maximumSize: CGSize
     public let supportsControlNet: Bool
     public let hiddenSize: Int
 
@@ -78,9 +80,17 @@ public class Unet {
     public init(chunksAt urls: [URL], configuration: MLModelConfiguration? = nil) throws {
         let metadata = try CoreMLMetadata.metadataForModel(at: urls[0])
         timestepShape = metadata.inputSchema[name: "timestep"]!.shape
-        let sampleShape = metadata.inputSchema[name: "sample"]!.shape
+        let sampleInput = metadata.inputSchema[name: "sample"]!
+        let sampleShape = sampleInput.shape
         latentSampleShape = sampleShape
         sampleSize = CGSize(width: sampleShape[3] * 8, height: sampleShape[2] * 8)
+        if sampleInput.hasShapeFlexibility {
+            minimumSize = CGSize(width: sampleInput.shapeRange[3][0] * 8, height: sampleInput.shapeRange[2][0] * 8)
+            maximumSize = CGSize(width: sampleInput.shapeRange[3][1] * 8, height: sampleInput.shapeRange[2][1] * 8)
+        } else {
+            minimumSize = sampleSize
+            maximumSize = sampleSize
+        }
         supportsControlNet = metadata.inputSchema[name: "mid_block_res_sample"] != nil
         hiddenSize = metadata.hiddenSize!
         attentionImplementation = metadata.attentionImplementation

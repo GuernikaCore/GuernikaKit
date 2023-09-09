@@ -32,20 +32,51 @@ struct CoreMLMetadata: Decodable {
     struct Input: Decodable {
         let name: String
         let shape: [Int]
+        let shapeRange: [[Int]]
+        let hasShapeFlexibility: Bool
         
         enum CodingKeys: CodingKey {
             case name
             case shape
+            case shapeRange
+            case hasShapeFlexibility
         }
         
         init(from decoder: Swift.Decoder) throws {
             let container: KeyedDecodingContainer<CodingKeys> = try decoder.container(keyedBy: CodingKeys.self)
             self.name = try container.decode(String.self, forKey: .name)
             let shapeString = try container.decode(String.self, forKey: .shape)
-            self.shape = shapeString[shapeString.index(after: shapeString.startIndex)..<shapeString.index(before: shapeString.endIndex)]
-                .split(separator: ", ")
-                .compactMap { Int($0) }
+            let shape = shapeString.shapeArray
+            self.shape = shape
+            
+            if let shapeFlexibilityString = try container.decodeIfPresent(String.self, forKey: .hasShapeFlexibility),
+               shapeFlexibilityString == "1" {
+                self.hasShapeFlexibility = true
+                let shapeRangeString = try container.decode(String.self, forKey: .shapeRange)
+                self.shapeRange = shapeRangeString.shapeRangeArray
+            } else {
+                self.hasShapeFlexibility = false
+                self.shapeRange = shape.map { [$0] }
+            }
         }
+    }
+}
+
+fileprivate extension String {
+    var shapeArray: [Int] {
+        self[self.index(after: startIndex)..<index(before: endIndex)]
+                        .split(separator: ", ")
+                        .compactMap { Int($0) }
+    }
+    
+    var shapeRangeArray: [[Int]] {
+        // Remove initial [[ and final ]]
+        self[self.index(startIndex, offsetBy: 2)..<index(endIndex, offsetBy: -2)]
+            .split(separator: "], [")
+            .compactMap {
+                $0.split(separator: ", ")
+                    .compactMap { Int($0) }
+            }
     }
 }
 
