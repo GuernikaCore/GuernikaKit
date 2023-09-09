@@ -177,9 +177,18 @@ extension StableDiffusionPipeline {
         let height = latent.shape[2]
         let width = latent.shape[3]
         
-        let red = PixelBufferPFx1(width: width, height: height)
-        let green = PixelBufferPFx1(width: width, height: height)
-        let blue = PixelBufferPFx1(width: width, height: height)
+        // https://developer.apple.com/documentation/accelerate/finding_the_sharpest_image_in_a_sequence_of_captured_images#4199619
+        let storageR = UnsafeMutableBufferPointer<Float>.allocate(capacity: Int(width * height))
+        let storageG = UnsafeMutableBufferPointer<Float>.allocate(capacity: Int(width * height))
+        let storageB = UnsafeMutableBufferPointer<Float>.allocate(capacity: Int(width * height))
+        let red = PixelBufferPFx1(data: storageR.baseAddress!, width: width, height: height, byteCountPerRow: width * MemoryLayout<Float>.stride)
+        let green = PixelBufferPFx1(data: storageG.baseAddress!, width: width, height: height, byteCountPerRow: width * MemoryLayout<Float>.stride)
+        let blue = PixelBufferPFx1(data: storageB.baseAddress!, width: width, height: height, byteCountPerRow: width * MemoryLayout<Float>.stride)
+        defer {
+            storageR.deallocate()
+            storageG.deallocate()
+            storageB.deallocate()
+        }
         
         let latentRGBFactors: [[Float]] = latentRGBFactors
         
@@ -194,45 +203,11 @@ extension StableDiffusionPipeline {
             cIn.multiply(by: latentRGBFactors[0][1], preBias: 0.0, postBias: 0.0, destination: green)
             cIn.multiply(by: latentRGBFactors[0][2], preBias: 0.0, postBias: 0.0, destination: blue)
         }
-        latent[0][1].withUnsafeShapedBufferPointer { channel1Ptr, _, _ in
-            latent[0][2].withUnsafeShapedBufferPointer { channel2Ptr, _, _ in
-                latent[0][3].withUnsafeShapedBufferPointer { channel3Ptr, _, _ in
-                    red.withUnsafeMutableBufferPointer { ptr in
-                        for i in 0..<ptr.count {
-                            ptr[i] = ptr[i] + (channel1Ptr[i] * latentRGBFactors[1][0]) + (channel2Ptr[i] * latentRGBFactors[2][0])
-                                + (channel3Ptr[i] * latentRGBFactors[3][0])
-                            ptr[i] = min(1, max(0, (ptr[i] + 1) / 2))
-                        }
-                    }
-                }
-            }
-        }
-        latent[0][1].withUnsafeShapedBufferPointer { channel1Ptr, _, _ in
-            latent[0][2].withUnsafeShapedBufferPointer { channel2Ptr, _, _ in
-                latent[0][3].withUnsafeShapedBufferPointer { channel3Ptr, _, _ in
-                    green.withUnsafeMutableBufferPointer { ptr in
-                        for i in 0..<ptr.count {
-                            ptr[i] = ptr[i] + (channel1Ptr[i] * latentRGBFactors[1][1]) + (channel2Ptr[i] * latentRGBFactors[2][1])
-                            + (channel3Ptr[i] * latentRGBFactors[3][1])
-                            ptr[i] = min(1, max(0, (ptr[i] + 1) / 2))
-                        }
-                    }
-                }
-            }
-        }
-        latent[0][1].withUnsafeShapedBufferPointer { channel1Ptr, _, _ in
-            latent[0][2].withUnsafeShapedBufferPointer { channel2Ptr, _, _ in
-                latent[0][3].withUnsafeShapedBufferPointer { channel3Ptr, _, _ in
-                    blue.withUnsafeMutableBufferPointer { ptr in
-                        for i in 0..<ptr.count {
-                            ptr[i] = ptr[i] + (channel1Ptr[i] * latentRGBFactors[1][2]) + (channel2Ptr[i] * latentRGBFactors[2][2])
-                                + (channel3Ptr[i] * latentRGBFactors[3][2])
-                            ptr[i] = min(1, max(0, (ptr[i] + 1) / 2))
-                        }
-                    }
-                }
-            }
-        }
+        
+        processChannel(0, latent: latent, buffer: red)
+        processChannel(1, latent: latent, buffer: green)
+        processChannel(2, latent: latent, buffer: blue)
+        
         let floatChannels = [red, green, blue]
         // Convert to interleaved and then to UInt8
         let floatImage = PixelBufferIFx3(planarBuffers: floatChannels)
@@ -254,5 +229,23 @@ extension StableDiffusionPipeline {
         guard let result = filter.value(forKey: kCIOutputImageKey) as? CIImage else { return cgImage }
         guard let newCgImage = CIContext(options: nil).createCGImage(result, from: result.extent) else { return cgImage }
         return newCgImage
+    }
+    
+    fileprivate func processChannel(_ channel: Int, latent: MLShapedArray<Float32>, buffer: PixelBufferPFx1) {
+        let latentRGBFactors: [[Float]] = latentRGBFactors
+        latent[0][1].withUnsafeShapedBufferPointer { channel1Ptr, _, _ in
+            latent[0][2].withUnsafeShapedBufferPointer { channel2Ptr, _, _ in
+                latent[0][3].withUnsafeShapedBufferPointer { channel3Ptr, _, _ in
+                    buffer.withUnsafeMutableBufferPointer { ptr in
+                        for i in 0..<channel3Ptr.count {
+                            ptr[i] = ptr[i] + (channel1Ptr[i] * latentRGBFactors[1][channel])
+                                + (channel2Ptr[i] * latentRGBFactors[2][channel])
+                                + (channel3Ptr[i] * latentRGBFactors[3][channel])
+                            ptr[i] = min(1, max(0, (ptr[i] + 1) / 2))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
