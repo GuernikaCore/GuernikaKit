@@ -128,7 +128,7 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
     ///            The images will be nil if safety checks were performed and found the result to be un-safe
     public func generateImages(
         input: SampleInput,
-        progressHandler: (StableDiffusionProgress) -> Bool = { _ in true }
+        progressHandler: (DiffusionProgress) -> Bool = { _ in true }
     ) throws -> CGImage? {
 #if DEBUG
         let mainTick = CFAbsoluteTimeGetCurrent()
@@ -224,7 +224,7 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
             }
 
             // Report progress
-            let progress = StableDiffusionProgress(
+            let progress = DiffusionProgress(
                 pipeline: self,
                 input: input,
                 step: step,

@@ -40,36 +40,13 @@ public protocol StableDiffusionPipeline: DiffusionPipeline {
     /// This will increase latency in favor of reducing memory
     var reduceMemory: Bool { get set }
     
-    func generateImages(
-        input: SampleInput,
-        progressHandler: (StableDiffusionProgress) -> Bool
-    ) throws -> CGImage?
+    func generateImages(input: SampleInput, progressHandler: (DiffusionProgress) -> Bool) throws -> CGImage?
     
     func decodeToImage(_ latent: MLShapedArray<Float32>) throws -> CGImage?
     
     var latentRGBFactors: [[Float]] { get }
     
     func latentToImage(_ latent: MLShapedArray<Float32>) -> CGImage?
-}
-
-/// Sampling progress details
-public struct StableDiffusionProgress {
-    public let pipeline: any StableDiffusionPipeline
-    public let input: SampleInput
-    public let step: Int
-    public let stepCount: Int
-    public let currentLatentSample: MLShapedArray<Float32>
-    public var latentImage: CGImage? {
-        pipeline.latentToImage(currentLatentSample)
-    }
-    public var decodedImage: CGImage? {
-        do {
-            return try pipeline.decodeToImage(currentLatentSample)
-        } catch {
-            print("Error decoding progress images", error.localizedDescription)
-            return latentImage
-        }
-    }
 }
 
 extension StableDiffusionPipeline {
