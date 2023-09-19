@@ -39,12 +39,7 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
     /// Model used to generate initial image for latent diffusion process
     var encoder: Encoder? = nil
     /// Models used to control diffusion models by adding extra conditions
-    public var controlNets: [ControlNet.Input] = [] {
-        didSet {
-            // Only allow compatible ControlNets
-            controlNets = controlNets.filter { $0.controlNet.hiddenSize == unet.hiddenSize }
-        }
-    }
+    public var conditioningInput: [ConditioningInput] = []
     /// Model used to predict noise residuals given an input, diffusion time step, and conditional embedding
     public var unet: Unet
     /// Model used to generate final image from latent diffusion process
@@ -137,7 +132,7 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
         overrideTextEncoder2?.unloadResources(clearCache: true)
         encoder?.unloadResources(clearCache: true)
         unet.unloadResources()
-        controlNets.forEach { $0.controlNet.unloadResources() }
+        conditioningInput.forEach { $0.module.unloadResources() }
         decoder.unloadResources()
         safetyChecker?.unloadResources()
     }
@@ -184,9 +179,13 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
         var (latent, noise, imageLatent) = try prepareLatent(input: input, generator: generator, scheduler: scheduler)
         // Prepare mask only for inpainting
         let (mask, maskedImage) = try prepareMaskLatents(input: input, generator: generator)
-        
         if reduceMemory {
             encoder?.unloadResources()
+        }
+        
+        let adapterState = try conditioningInput.predictAdapterResiduals(latent: latent)
+        if reduceMemory {
+            conditioningInput.adapters.forEach { $0.unloadResources() }
         }
 
         // De-noising loop
@@ -205,19 +204,19 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
                 latentUnetInput = MLShapedArray<Float32>(concatenating: [latentUnetInput, mask, maskedImage], alongAxis: 1)
             }
             
-            let additionalResiduals = try controlNets.predictResiduals(
+            let additionalResiduals = try adapterState ?? (try conditioningInput.predictControlNetResiduals(
                 latent: latentUnetInput,
                 timeStep: t,
                 hiddenStates: hiddenStates,
                 textEmbeddings: addedTextEmbeddings,
                 timeIds: timeIds
-            )
+            ))
 
             // Predict noise residuals from latent samples
             // and current time step conditioned on hidden states
             var noisePrediction = try unet.predictNoise(
                 latents: [latentUnetInput],
-                additionalResiduals: additionalResiduals.map { [$0] },
+                additionalResiduals: additionalResiduals,
                 timeStep: t,
                 hiddenStates: hiddenStates,
                 textEmbeddings: addedTextEmbeddings,
@@ -278,7 +277,7 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
         }
         
         if reduceMemory {
-            controlNets.forEach { $0.controlNet.unloadResources() }
+            conditioningInput.controlNets.forEach { $0.unloadResources() }
             unet.unloadResources()
         }
 

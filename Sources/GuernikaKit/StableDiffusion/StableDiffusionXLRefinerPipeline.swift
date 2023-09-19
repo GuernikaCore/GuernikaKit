@@ -30,7 +30,7 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
     /// Model used to generate initial image for latent diffusion process
     var encoder: Encoder? = nil
     /// Models used to control diffusion models by adding extra conditions
-    public var controlNets: [ControlNet.Input] = []
+    public var conditioningInput: [ConditioningInput] = []
     public var supportsControlNet: Bool { false }
     /// Model used to predict noise residuals given an input, diffusion time step, and conditional embedding
     public var unet: Unet

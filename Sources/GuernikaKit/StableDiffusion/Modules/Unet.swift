@@ -58,6 +58,7 @@ public class Unet {
     public let sampleSize: CGSize
     public let minimumSize: CGSize
     public let maximumSize: CGSize
+    public let supportsAdapter: Bool
     public let supportsControlNet: Bool
     public let hiddenSize: Int
 
@@ -91,6 +92,7 @@ public class Unet {
             minimumSize = sampleSize
             maximumSize = sampleSize
         }
+        supportsAdapter = metadata.inputSchema[name: "adapter_res_samples_00"] != nil
         supportsControlNet = metadata.inputSchema[name: "mid_block_res_sample"] != nil
         hiddenSize = metadata.hiddenSize!
         attentionImplementation = metadata.attentionImplementation
@@ -137,7 +139,7 @@ public class Unet {
     /// - Returns: Array of predicted noise residuals
     func predictNoise(
         latents: [MLShapedArray<Float32>],
-        additionalResiduals: [([MLShapedArray<Float32>], MLShapedArray<Float32>)]?,
+        additionalResiduals: [String: MLShapedArray<Float32>]?,
         timeStep: Double,
         hiddenStates: MLShapedArray<Float32>,
         textEmbeddings: MLShapedArray<Float32>? = nil,
@@ -147,48 +149,31 @@ public class Unet {
         let t = MLShapedArray<Float32>(repeating: Float32(timeStep), shape: timestepShape)
 
         // Form batch input to model
-        let inputs: [MLDictionaryFeatureProvider]
-        if let additionalResiduals {
-            inputs = try zip(latents, additionalResiduals).map { latent, residuals in
-                var dict: [String: Any] = [
-                    "sample" : MLMultiArray(latent),
-                    "timestep" : MLMultiArray(t),
-                    "encoder_hidden_states": MLMultiArray(hiddenStates)
-                ]
-                if let textEmbeddings, let timeIds {
-                    dict["text_embeds"] = MLMultiArray(textEmbeddings)
-                    dict["time_ids"] = MLMultiArray(timeIds)
-                }
-                
-                for (index, residual) in residuals.0.enumerated() {
-                    dict[String(format: "down_block_res_samples_%02d", index)] = MLMultiArray(residual)
-                }
-                dict["mid_block_res_sample"] = MLMultiArray(residuals.1)
-                return try MLDictionaryFeatureProvider(dictionary: dict)
+        let inputs: [MLDictionaryFeatureProvider] = try latents.map {
+            var dict: [String: Any] = [
+                "sample" : MLMultiArray($0),
+                "timestep" : MLMultiArray(t),
+                "encoder_hidden_states": MLMultiArray(hiddenStates)
+            ]
+            if let textEmbeddings, let timeIds {
+                dict["text_embeds"] = MLMultiArray(textEmbeddings)
+                dict["time_ids"] = MLMultiArray(timeIds)
             }
-        } else {
-            inputs = try latents.map {
-                var dict: [String: Any] = [
-                    "sample" : MLMultiArray($0),
-                    "timestep" : MLMultiArray(t),
-                    "encoder_hidden_states": MLMultiArray(hiddenStates)
-                ]
-                if let textEmbeddings, let timeIds {
-                    dict["text_embeds"] = MLMultiArray(textEmbeddings)
-                    dict["time_ids"] = MLMultiArray(timeIds)
+            
+            if let additionalResiduals {
+                for (name, residual) in additionalResiduals {
+                    dict[name] = MLMultiArray(residual)
                 }
-                
-                if supportsControlNet {
-                    try models.first?.perform { model in
-                        let inputDescriptions = model.modelDescription.inputDescriptionsByName
-                        for input in inputDescriptions {
-                            guard dict[input.key] == nil else { continue }
-                            dict[input.key] = input.value.emptyValue
-                        }
-                    }
-                }
-                return try MLDictionaryFeatureProvider(dictionary: dict)
             }
+            
+            try models.first?.perform { model in
+                let inputDescriptions = model.modelDescription.inputDescriptionsByName
+                for input in inputDescriptions {
+                    guard !input.value.isOptional, dict[input.key] == nil else { continue }
+                    dict[input.key] = input.value.emptyValue
+                }
+            }
+            return try MLDictionaryFeatureProvider(dictionary: dict)
         }
         let batch = MLArrayBatchProvider(array: inputs)
 

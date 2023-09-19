@@ -10,51 +10,7 @@ import Accelerate
 import Foundation
 
 /// U-Net noise prediction model for stable diffusion
-public class ControlNet {
-    public enum Method: String, Hashable, Decodable {
-        case canny
-        case depth
-        case pose
-        case mlsd
-        case normal
-        case scribble
-        case hed
-        case segmentation
-        case unknown
-        
-        public init(from decoder: Swift.Decoder) throws {
-            do {
-                let container = try decoder.singleValueContainer()
-                let rawValue = try container.decode(String.self)
-                if let value = Self(rawValue: rawValue) {
-                    self = value
-                } else {
-                    self = .unknown
-                }
-            } catch {
-                self = .unknown
-            }
-        }
-    }
-    
-    public class Input: Identifiable {
-        public let id: UUID = UUID()
-        public let controlNet: ControlNet
-        public var method: Method { controlNet.method }
-        public var conditioningScale: Float = 1.0
-        public var image: CGImage? {
-            didSet {
-                // Reset imageData, it will be updated when run with the correct size
-                imageData = nil
-            }
-        }
-        var imageData: MLShapedArray<Float32>?
-        
-        public init(controlNet: ControlNet) {
-            self.controlNet = controlNet
-        }
-    }
-    
+public class ControlNet: ConditioningModule {
     /// Model used to predict noise residuals given an input, diffusion time step, and conditional embedding
     ///
     /// It can be in the form of a single model or multiple stages
@@ -67,7 +23,7 @@ public class ControlNet {
     public let url: URL
     public let converterVersion: String?
     public let attentionImplementation: AttentionImplementation
-    public let method: Method
+    public let method: ConditioningMethod
     public let sampleSize: CGSize
     public let minimumSize: CGSize
     public let maximumSize: CGSize
@@ -82,7 +38,9 @@ public class ControlNet {
     public init(modelAt url: URL, configuration: MLModelConfiguration? = nil) throws {
         self.url = url
         let metadata = try CoreMLMetadata.metadataForModel(at: url)
-        let condInput = metadata.inputSchema[name: "controlnet_cond"]!
+        guard let condInput = metadata.inputSchema[name: "controlnet_cond"] else {
+            throw StableDiffusionError.incompatibleControlNet
+        }
         let sampleShape = condInput.shape
         sampleSize = CGSize(width: sampleShape[3], height: sampleShape[2])
         if condInput.hasShapeFlexibility {
@@ -101,7 +59,8 @@ public class ControlNet {
             method = info.method
         } else {
             converterVersion = metadata.userDefinedMetadata?["converter_version"]
-            if let methodString = metadata.userDefinedMetadata?["method"], let method = Method(rawValue: methodString) {
+            if let methodString = metadata.userDefinedMetadata?["method"],
+                let method = ConditioningMethod(rawValue: methodString) {
                 self.method = method
             } else {
                 self.method = .unknown
@@ -125,13 +84,13 @@ public class ControlNet {
     ///   - hiddenStates: Hidden state to condition on
     /// - Returns: Array of predicted noise residuals
     func predictResiduals(
-        input: Input,
+        input: ConditioningInput,
         latent: MLShapedArray<Float32>,
         timeStep: Double,
         hiddenStates: MLShapedArray<Float32>,
         textEmbeddings: MLShapedArray<Float32>? = nil,
         timeIds: MLShapedArray<Float32>? = nil
-    ) throws -> ([MLShapedArray<Float32>], MLShapedArray<Float32>)? {
+    ) throws -> [String: MLShapedArray<Float32>]? {
         guard let image = input.image, input.conditioningScale > 0 else { return nil }
         
         if input.imageData?.shape[2] != latent.shape[2] * 8 || input.imageData?.shape[3] != latent.shape[3] * 8 {
@@ -170,22 +129,8 @@ public class ControlNet {
         // Use the fact that the concatenating constructor for MLMultiArray
         // can do type conversion:
 
-        let downResNoise = [
-            result.featureValue(for: "down_block_res_samples_00")!.multiArrayValue!,
-            result.featureValue(for: "down_block_res_samples_01")!.multiArrayValue!,
-            result.featureValue(for: "down_block_res_samples_02")!.multiArrayValue!,
-            result.featureValue(for: "down_block_res_samples_03")!.multiArrayValue!,
-            result.featureValue(for: "down_block_res_samples_04")!.multiArrayValue!,
-            result.featureValue(for: "down_block_res_samples_05")!.multiArrayValue!,
-            result.featureValue(for: "down_block_res_samples_06")!.multiArrayValue!,
-            result.featureValue(for: "down_block_res_samples_07")!.multiArrayValue!,
-            result.featureValue(for: "down_block_res_samples_08")!.multiArrayValue!,
-            result.featureValue(for: "down_block_res_samples_09")?.multiArrayValue,
-            result.featureValue(for: "down_block_res_samples_10")?.multiArrayValue,
-            result.featureValue(for: "down_block_res_samples_11")?.multiArrayValue,
-        ]
-        let downResFp32Noise: [MLShapedArray<Float32>] = downResNoise.compactMap { sample in
-            guard let sample else { return nil }
+        return result.featureValueDictionary.compactMapValues { value in
+            guard let sample = value.multiArrayValue else { return nil }
             var noise = MLShapedArray<Float32>(MLMultiArray(
                 concatenating: [sample],
                 axis: 0,
@@ -194,28 +139,26 @@ public class ControlNet {
             noise.scale(input.conditioningScale)
             return noise
         }
-
-        let midResNoise = result.featureValue(for: "mid_block_res_sample")!.multiArrayValue!
-        var midResFp32Noise = MLShapedArray<Float32>(MLMultiArray(
-            concatenating: [midResNoise],
-            axis: 0,
-            dataType: .float32
-        ))
-        midResFp32Noise.scale(input.conditioningScale)
-        return (downResFp32Noise, midResFp32Noise)
     }
 }
 
-extension Array where Element == ControlNet.Input {
-    func predictResiduals(
+extension Array where Element == ConditioningInput {
+    var controlNets: [ControlNet] {
+        compactMap { input -> ControlNet? in
+            input.module as? ControlNet
+        }
+    }
+    
+    func predictControlNetResiduals(
         latent: MLShapedArray<Float32>,
         timeStep: Double,
         hiddenStates: MLShapedArray<Float32>,
         textEmbeddings: MLShapedArray<Float32>? = nil,
         timeIds: MLShapedArray<Float32>? = nil
-    ) throws -> ([MLShapedArray<Float32>], MLShapedArray<Float32>)? {
-        try compactMap { input in
-            try input.controlNet.predictResiduals(
+    ) throws -> [String: MLShapedArray<Float32>]? {
+        try compactMap { input -> [String: MLShapedArray<Float32>]? in
+            guard let controlNet = input.module as? ControlNet else { return nil }
+            return try controlNet.predictResiduals(
                 input: input,
                 latent: latent,
                 timeStep: timeStep,
@@ -227,48 +170,11 @@ extension Array where Element == ControlNet.Input {
     }
 }
 
-fileprivate extension Array where Element == ([MLShapedArray<Float32>], MLShapedArray<Float32>) {
-    func addResiduals() -> ([MLShapedArray<Float32>], MLShapedArray<Float32>)? {
-        guard count > 1 else { return first }
-        var total: ([MLShapedArray<Float32>], MLShapedArray<Float32>) = self[0]
-        for res in self.dropFirst() {
-            let stride = vDSP_Stride(1)
-            // Go through each latent residuals of the total and current ControlNet residuals
-            for downSample in 0..<total.0.count {
-                total.0[downSample].withUnsafeMutableShapedBufferPointer { total, _, _ in
-                    res.0[downSample].withUnsafeShapedBufferPointer { latent, _, _ in
-                        let n = vDSP_Length(total.count)
-                        vDSP_vadd(
-                            total.baseAddress!, stride,
-                            latent.baseAddress!, stride,
-                            total.baseAddress!, stride,
-                            n
-                        )
-                    }
-                }
-            }
-            
-            total.1.withUnsafeMutableShapedBufferPointer { total, _, _ in
-                res.1.withUnsafeShapedBufferPointer { latent, _, _ in
-                    let n = vDSP_Length(total.count)
-                    vDSP_vadd(
-                        total.baseAddress!, stride,
-                        latent.baseAddress!, stride,
-                        total.baseAddress!, stride,
-                        n
-                    )
-                }
-            }
-        }
-        return total
-    }
-}
-
 extension ControlNet {
     struct Info: Decodable {
         let id: String
         let converterVersion: String?
-        let method: Method
+        let method: ConditioningMethod
         
         enum CodingKeys: String, CodingKey {
             case id = "identifier"

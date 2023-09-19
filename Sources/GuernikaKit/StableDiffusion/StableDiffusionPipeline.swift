@@ -17,7 +17,8 @@ public protocol StableDiffusionPipeline: DiffusionPipeline {
     var overrideTextEncoder: TextEncoder? { get set }
     
     /// Models used to control diffusion models by adding extra conditions
-    var controlNets: [ControlNet.Input] { get set }
+    var conditioningInput: [ConditioningInput] { get set }
+    var supportsAdapter: Bool { get }
     var supportsControlNet: Bool { get }
     
     /// Model used to predict noise residuals given an input, diffusion time step, and conditional embedding
@@ -78,7 +79,7 @@ extension StableDiffusionPipeline {
     public var sampleSize: CGSize { unet.sampleSize }
     public var minimumSize: CGSize { unet.minimumSize }
     public var maximumSize: CGSize { unet.maximumSize }
-    public var allowsVariableSize: Bool { unet.minimumSize != unet.maximumSize }
+    public var supportsAdapter: Bool { unet.supportsAdapter }
     public var supportsControlNet: Bool { unet.supportsControlNet }
     
     /// Reports whether this pipeline can perform safety checks
@@ -88,11 +89,13 @@ extension StableDiffusionPipeline {
     
     public var configuration: MLModelConfiguration { unet.configuration }
     
-    public func addControlNet(_ controlNet: ControlNet) throws {
-        guard controlNet.hiddenSize == unet.hiddenSize else {
+    public func addConditioningInput(_ module: any ConditioningModule) throws {
+        if module is T2IAdapter, !supportsAdapter {
+            throw StableDiffusionError.incompatibleAdapter
+        } else if module is ControlNet, !supportsControlNet {
             throw StableDiffusionError.incompatibleControlNet
         }
-        controlNets.append(.init(controlNet: controlNet))
+        conditioningInput.append(.init(module: module))
     }
     
     public func generateImages(input: SampleInput) throws -> CGImage? {
