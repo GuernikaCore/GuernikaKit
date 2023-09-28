@@ -90,6 +90,8 @@ public extension CGImage {
         return toShapedArray(min: 0, max: 1, components: [true, false, false, false])
     }
     
+    var size: CGSize { CGSize(width: width, height: height) }
+    
     func scaledAspectFill(size newSize: CGSize) -> CGImage {
         let size = CGSize(width: width, height: height)
         guard size != newSize else { return self }

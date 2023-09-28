@@ -155,6 +155,7 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
 #if DEBUG
         let mainTick = CFAbsoluteTimeGetCurrent()
 #endif
+        let input = try checkInput(input: input)
         let (hiddenStates, addedTextEmbeddings) = try hiddenStatesAndEmbeddings(
             prompt: input.prompt, negativePrompt: input.negativePrompt
         )
@@ -305,9 +306,6 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
         sampleShape[0] = 1
         sampleShape[1] = 4
         if let size = input.size {
-            guard size.isBetween(min: unet.minimumSize, max: unet.maximumSize) else {
-                throw StableDiffusionError.incompatibleSize
-            }
             var newHeight = Int(size.height / 8)
             var newWidth = Int(size.width / 8)
             // Sample shape size must be divisible by 8

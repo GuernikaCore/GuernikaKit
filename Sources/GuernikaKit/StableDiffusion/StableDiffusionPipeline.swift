@@ -75,6 +75,30 @@ extension StableDiffusionPipeline {
         conditioningInput.append(.init(module: module))
     }
     
+    func checkInput(input: SampleInput) throws -> SampleInput {
+        var input = input
+        if var size = input.size {
+            guard size.isBetween(min: unet.minimumSize, max: unet.maximumSize) else {
+                throw StableDiffusionError.incompatibleSize
+            }
+            // Output size must be divisible by 64
+            if !Int(size.height).isMultiple(of: 64) {
+                size.height = CGFloat(Int(size.height / 64) * 64)
+            }
+            if !Int(size.width).isMultiple(of: 64) {
+                size.width = CGFloat(Int(size.width / 64) * 64)
+            }
+            input.size = size
+            if let image = input.initImage, image.size != size {
+                input.initImage = image.scaledAspectFill(size: size)
+            }
+        }
+        if let image = input.initImage, let maskImage = input.inpaintMask, image.size != maskImage.size {
+            input.inpaintMask = maskImage.scaledAspectFill(size: image.size)
+        }
+        return input
+    }
+    
     public func generateImages(input: SampleInput) throws -> CGImage? {
         try generateImages(input: input, progressHandler: { _ in true })
     }
@@ -125,7 +149,7 @@ extension StableDiffusionPipeline {
     }
     
     public func decodeToImage(_ latent: MLShapedArray<Float32>) throws -> CGImage? {
-        let image = try decoder.decode([latent])[0]
+        let image = try decoder.decode(latent)
         
         // If there is no safety checker return what was decoded
         guard !disableSafety, let safetyChecker else {
@@ -153,7 +177,6 @@ extension StableDiffusionPipeline {
     
     public func latentToImage(_ latent: MLShapedArray<Float32>) -> CGImage? {
         // array is [N,C,H,W], where C==4
-        let channelCount = latent.shape[1]
         let height = latent.shape[2]
         let width = latent.shape[3]
         
@@ -172,7 +195,6 @@ extension StableDiffusionPipeline {
         
         let latentRGBFactors: [[Float]] = latentRGBFactors
         
-        let stride = vDSP_Stride(1)
         // Reference this channel in the array and normalize
         latent[0][0].withUnsafeShapedBufferPointer { channelPtr, _, strides in
             let cIn = PixelBufferPFx1(data: .init(mutating: channelPtr.baseAddress!),

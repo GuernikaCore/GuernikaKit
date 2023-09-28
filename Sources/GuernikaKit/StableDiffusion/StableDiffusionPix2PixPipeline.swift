@@ -128,6 +128,7 @@ public class StableDiffusionPix2PixPipeline: StableDiffusionPipeline {
 #if DEBUG
         let mainTick = CFAbsoluteTimeGetCurrent()
 #endif
+        let input = try checkInput(input: input)
         let hiddenStates = try hiddenStates(prompt: input.prompt, negativePrompt: input.negativePrompt)
         
         if hiddenStates.shape[1] != unet.hiddenSize {

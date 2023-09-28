@@ -97,7 +97,7 @@ public class T2IAdapter: ConditioningModule {
         
         // Batch predict with model
         let result = try model.perform { model in
-            var dict: [String: Any] = [
+            let dict: [String: Any] = [
                 "input": MLMultiArray(imageData)
             ]         
             let input = try MLDictionaryFeatureProvider(dictionary: dict)
