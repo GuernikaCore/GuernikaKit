@@ -141,6 +141,7 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
 #if DEBUG
         let mainTick = CFAbsoluteTimeGetCurrent()
 #endif
+        let input = try checkInput(input: input)
         let (hiddenStates, addedTextEmbeddings) = try hiddenStatesAndEmbeddings(
             prompt: input.prompt, negativePrompt: input.negativePrompt
         )
