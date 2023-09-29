@@ -38,41 +38,25 @@ public class Decoder {
     ///  - Parameters:
     ///    - latents: Batch of latent samples to decode
     ///  - Returns: decoded images
-    public func decode(
-        _ latents: [MLShapedArray<Float32>],
-        scaleFactor: Float32 = 0.18215
-    ) throws -> [CGImage] {
-        // Batch predict with model
-        let results = try model.perform { model in
+    public func decode(_ latent: MLShapedArray<Float32>, scaleFactor: Float32 = 0.18215) throws -> CGImage {
+        let result = try model.perform { model in
             let inputName = model.modelDescription.inputDescriptionsByName.first!.key
-            
-            // Form batch inputs for model
-            let inputs: [MLFeatureProvider] = try latents.map { sample in
-                // Reference pipeline scales the latent samples before decoding
-                let sampleScaled = MLShapedArray(unsafeUninitializedShape: sample.shape) { scalars, _ in
-                    sample.withUnsafeShapedBufferPointer { sample, _, _ in
-                        vDSP.divide(sample, scaleFactor, result: &scalars)
-                    }
+            // Reference pipeline scales the latent samples before decoding
+            let sampleScaled = MLShapedArray(unsafeUninitializedShape: latent.shape) { scalars, _ in
+                latent.withUnsafeShapedBufferPointer { sample, _, _ in
+                    vDSP.divide(sample, scaleFactor, result: &scalars)
                 }
-                
-                let dict = [inputName: MLMultiArray(sampleScaled)]
-                return try MLDictionaryFeatureProvider(dictionary: dict)
             }
-            let batch = MLArrayBatchProvider(array: inputs)
             
-            return try model.predictions(fromBatch: batch)
+            let dict = [inputName: MLMultiArray(sampleScaled)]
+            let input = try MLDictionaryFeatureProvider(dictionary: dict)
+            return try model.prediction(from: input)
         }
         
-        // Transform the outputs to CGImages
-        let images: [CGImage] = (0..<results.count).map { i in
-            let result = results.features(at: i)
-            let outputName = result.featureNames.first!
-            let output = result.featureValue(for: outputName)!.multiArrayValue!
-            
-            return toRGBCGImage(MLShapedArray<Float32>(converting: output))
-        }
-        
-        return images
+        // Transform the output to CGImage
+        let outputName = result.featureNames.first!
+        let output = result.featureValue(for: outputName)!.multiArrayValue!
+        return toRGBCGImage(MLShapedArray<Float32>(converting: output))
     }
     
     typealias PixelBufferPFx1 = vImage.PixelBuffer<vImage.PlanarF>

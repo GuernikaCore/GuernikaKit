@@ -437,7 +437,7 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
     }
     
     public func decodeToImage(_ latent: MLShapedArray<Float32>) throws -> CGImage? {
-        return try decoder.decode([latent], scaleFactor: 0.13025)[0]
+        return try decoder.decode(latent, scaleFactor: 0.13025)
     }
 
     func performGuidance(_ noise: [MLShapedArray<Float32>], guidanceScale: Float) -> [MLShapedArray<Float32>] {
