@@ -68,13 +68,16 @@ extension StableDiffusionPipeline {
     
     public var configuration: MLModelConfiguration { unet.configuration }
     
-    public func addConditioningInput(_ module: any ConditioningModule) throws {
+    @discardableResult
+    public func addConditioningInput(_ module: any ConditioningModule) throws -> ConditioningInput {
         if module is T2IAdapter, !supportsAdapter {
             throw StableDiffusionError.incompatibleAdapter
         } else if module is ControlNet, !supportsControlNet {
             throw StableDiffusionError.incompatibleControlNet
         }
-        conditioningInput.append(.init(module: module))
+        let input = ConditioningInput(module: module)
+        conditioningInput.append(input)
+        return input
     }
     
     func checkInput(input: SampleInput) throws -> SampleInput {
