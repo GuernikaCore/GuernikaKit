@@ -168,8 +168,14 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
             // Expand the latents for classifier-free guidance
             // and input to the Unet noise prediction model
             var latentUnetInput = MLShapedArray<Float32>(concatenating: [latent, latent], alongAxis: 0)
-            
             latentUnetInput = scheduler.scaleModelInput(timeStep: t, sample: latentUnetInput)
+            
+            let additionalResiduals = try adapterState ?? (try conditioningInput.predictControlNetResiduals(
+                latent: latentUnetInput,
+                timeStep: t,
+                hiddenStates: hiddenStates,
+                reduceMemory: reduceMemory
+            ))
             
             if unet.function == .inpaint {
                 guard let mask, let maskedImage else {
@@ -178,13 +184,6 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
                 // Concat mask in case we are doing inpainting
                 latentUnetInput = MLShapedArray<Float32>(concatenating: [latentUnetInput, mask, maskedImage], alongAxis: 1)
             }
-            
-            let additionalResiduals = try adapterState ?? (try conditioningInput.predictControlNetResiduals(
-                latent: latentUnetInput,
-                timeStep: t,
-                hiddenStates: hiddenStates,
-                reduceMemory: reduceMemory
-            ))
 
             // Predict noise residuals from latent samples
             // and current time step conditioned on hidden states
