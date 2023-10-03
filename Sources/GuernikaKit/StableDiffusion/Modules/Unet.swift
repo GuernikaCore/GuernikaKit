@@ -149,9 +149,9 @@ public class Unet {
         let t = MLShapedArray<Float32>(repeating: Float32(timeStep), shape: timestepShape)
 
         // Form batch input to model
-        let inputs: [MLDictionaryFeatureProvider] = try latents.map {
+        let inputs: [MLDictionaryFeatureProvider] = try latents.map { latent in
             var dict: [String: Any] = [
-                "sample" : MLMultiArray($0),
+                "sample" : MLMultiArray(latent),
                 "timestep" : MLMultiArray(t),
                 "encoder_hidden_states": MLMultiArray(hiddenStates)
             ]
@@ -169,8 +169,11 @@ public class Unet {
             try models.first?.perform { model in
                 let inputDescriptions = model.modelDescription.inputDescriptionsByName
                 for input in inputDescriptions {
-                    guard !input.value.isOptional, dict[input.key] == nil else { continue }
-                    dict[input.key] = input.value.emptyValue
+                    guard dict[input.key] == nil else { continue }
+                    dict[input.key] = input.value.residualEmptyValue(
+                        latentShape: latent.shape,
+                        defaultShape: latentSampleShape
+                    )
                 }
             }
             return try MLDictionaryFeatureProvider(dictionary: dict)
@@ -251,6 +254,16 @@ extension MLFeatureProvider {
 extension MLFeatureDescription {
     var emptyValue: MLMultiArray {
         MLMultiArray(MLShapedArray<Float32>(repeating: 0, shape: multiArrayConstraint!.shape.map { $0.intValue }))
+    }
+    
+    fileprivate func residualEmptyValue(latentShape: [Int], defaultShape: [Int]) -> MLMultiArray {
+        var valueShape = multiArrayConstraint!.shape.map { $0.intValue }
+        // This makes sure the inputs of empty residuals have the correct size when the latent shape is not the default
+        if latentShape != defaultShape {
+            valueShape[2] = Int(Double(valueShape[2]) / Double(defaultShape[2]) * Double(latentShape[2]))
+            valueShape[3] = Int(Double(valueShape[3]) / Double(defaultShape[3]) * Double(latentShape[3]))
+        }
+        return MLMultiArray(MLShapedArray<Float32>(repeating: 0, shape: valueShape))
     }
 }
 
