@@ -130,13 +130,20 @@ extension Array where Element == ConditioningInput {
         }
     }
     
-    func predictAdapterResiduals(latent: MLShapedArray<Float32>) throws -> [String: MLShapedArray<Float32>]? {
+    func predictAdapterResiduals(
+        latent: MLShapedArray<Float32>,
+        reduceMemory: Bool
+    ) throws -> [String: MLShapedArray<Float32>]? {
         try compactMap { input -> [String: MLShapedArray<Float32>]? in
             guard let adapter = input.module as? T2IAdapter else { return nil }
-            return try adapter.predictResiduals(
+            let residuals = try adapter.predictResiduals(
                 input: input,
                 latent: latent
             )
+            if reduceMemory {
+                adapter.unloadResources()
+            }
+            return residuals
         }.addResiduals()
     }
 }

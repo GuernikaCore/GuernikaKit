@@ -38,6 +38,19 @@ final class ManagedMLModel {
         self.loadedModel = nil
         self.queue = DispatchQueue(label: "managed.\(url.lastPathComponent)")
     }
+    
+    /// Request resources are pre-warmed by loading and unloading
+    func prewarmResources() throws {
+        try loadResources()
+        unloadResources()
+    }
+    
+    /// Instantiation and load model into memory
+    func loadResources() throws {
+        try queue.sync {
+            try loadModel()
+        }
+    }
 
     /// Unload the model if it was loaded
     func unloadResources() {

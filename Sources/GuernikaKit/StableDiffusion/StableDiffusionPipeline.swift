@@ -40,6 +40,8 @@ public protocol StableDiffusionPipeline: DiffusionPipeline {
     /// This will increase latency in favor of reducing memory
     var reduceMemory: Bool { get set }
     
+    func prewarmResources() throws
+    
     func generateImages(input: SampleInput, progressHandler: (DiffusionProgress) -> Bool) throws -> CGImage?
     
     func decodeToImage(_ latent: MLShapedArray<Float32>) throws -> CGImage?

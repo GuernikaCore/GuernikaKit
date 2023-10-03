@@ -103,6 +103,18 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
         self.computeUnits = computeUnits
         self.reduceMemory = reduceMemory
     }
+    
+    public func prewarmResources() throws {
+        if let overrideTextEncoder {
+            try overrideTextEncoder.model.prewarmResources()
+        } else {
+            try textEncoder.model.prewarmResources()
+        }
+        try encoder?.model.prewarmResources()
+        try unet.models.forEach { try $0.prewarmResources() }
+        try decoder.model.prewarmResources()
+        try safetyChecker?.model.prewarmResources()
+    }
 
     /// Unload the underlying resources to free up memory
     public func unloadResources() {
@@ -149,10 +161,7 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
             encoder?.unloadResources()
         }
         
-        let adapterState = try conditioningInput.predictAdapterResiduals(latent: latent)
-        if reduceMemory {
-            conditioningInput.adapters.forEach { $0.unloadResources() }
-        }
+        let adapterState = try conditioningInput.predictAdapterResiduals(latent: latent, reduceMemory: reduceMemory)
 
         // De-noising loop
         for (step, t) in scheduler.timeSteps.enumerated() {
@@ -173,7 +182,8 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
             let additionalResiduals = try adapterState ?? (try conditioningInput.predictControlNetResiduals(
                 latent: latentUnetInput,
                 timeStep: t,
-                hiddenStates: hiddenStates
+                hiddenStates: hiddenStates,
+                reduceMemory: reduceMemory
             ))
 
             // Predict noise residuals from latent samples

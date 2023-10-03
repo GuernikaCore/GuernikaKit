@@ -154,11 +154,12 @@ extension Array where Element == ConditioningInput {
         timeStep: Double,
         hiddenStates: MLShapedArray<Float32>,
         textEmbeddings: MLShapedArray<Float32>? = nil,
-        timeIds: MLShapedArray<Float32>? = nil
+        timeIds: MLShapedArray<Float32>? = nil,
+        reduceMemory: Bool
     ) throws -> [String: MLShapedArray<Float32>]? {
         try compactMap { input -> [String: MLShapedArray<Float32>]? in
             guard let controlNet = input.module as? ControlNet else { return nil }
-            return try controlNet.predictResiduals(
+            let residuals = try controlNet.predictResiduals(
                 input: input,
                 latent: latent,
                 timeStep: timeStep,
@@ -166,6 +167,10 @@ extension Array where Element == ConditioningInput {
                 textEmbeddings: textEmbeddings, 
                 timeIds: timeIds
             )
+            if reduceMemory {
+                controlNet.unloadResources()
+            }
+            return residuals
         }.addResiduals()
     }
 }

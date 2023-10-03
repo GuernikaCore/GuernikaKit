@@ -28,7 +28,7 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
         }
     }
     /// Model used to generate initial image for latent diffusion process
-    var encoder: Encoder? = nil
+    var encoder: Encoder
     /// Models used to control diffusion models by adding extra conditions
     public var conditioningInput: [ConditioningInput] = []
     public var supportsControlNet: Bool { false }
@@ -58,9 +58,7 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
     }
     
     /// Reports whether this pipeline can perform image to image
-    public var canGenerateVariations: Bool {
-        encoder != nil
-    }
+    public var canGenerateVariations: Bool { true }
     
     public var computeUnits: ComputeUnits {
         didSet {
@@ -68,7 +66,7 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
             let configuration = MLModelConfiguration()
             configuration.computeUnits = computeUnits.mlComputeUnits(for: unet.attentionImplementation)
             textEncoder.configuration = configuration
-            encoder?.configuration = configuration
+            encoder.configuration = configuration
             unet.configuration = configuration
             decoder.configuration = configuration
             safetyChecker?.configuration = configuration
@@ -95,7 +93,7 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
     public init(
         baseUrl: URL,
         textEncoder: TextEncoder,
-        encoder: Encoder? = nil,
+        encoder: Encoder,
         unet: Unet,
         decoder: Decoder,
         safetyChecker: SafetyChecker? = nil,
@@ -112,12 +110,24 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
         self.computeUnits = computeUnits
         self.reduceMemory = reduceMemory
     }
+    
+    public func prewarmResources() throws {
+        if let overrideTextEncoder {
+            try overrideTextEncoder.model.prewarmResources()
+        } else {
+            try textEncoder.model.prewarmResources()
+        }
+        try encoder.model.prewarmResources()
+        try unet.models.forEach { try $0.prewarmResources() }
+        try decoder.model.prewarmResources()
+        try safetyChecker?.model.prewarmResources()
+    }
 
     /// Unload the underlying resources to free up memory
     public func unloadResources() {
         textEncoder.unloadResources(clearCache: true)
         overrideTextEncoder?.unloadResources(clearCache: true)
-        encoder?.unloadResources(clearCache: true)
+        encoder.unloadResources(clearCache: true)
         unet.unloadResources()
         decoder.unloadResources()
         safetyChecker?.unloadResources()
@@ -172,9 +182,8 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
         var (latent, noise, imageLatent) = try prepareLatent(input: input, generator: generator, scheduler: scheduler)
         // Prepare mask only for inpainting
         let (mask, maskedImage) = try prepareMaskLatents(input: input, generator: generator)
-        
         if reduceMemory {
-            encoder?.unloadResources()
+            encoder.unloadResources()
         }
 
         // De-noising loop
@@ -289,9 +298,6 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
         let noise: MLShapedArray<Float32>?
         var imageLatent: MLShapedArray<Float32>?
         if let image = input.initImage, let strength = input.strength {
-            guard let encoder else {
-                throw StableDiffusionError.encoderMissing
-            }
             imageLatent = try encoder.encode(image, scaleFactor: 0.13025, generator: generator)
             if input.inpaintMask != nil && strength >= 1 {
                 let stdev = scheduler.initNoiseSigma
@@ -315,9 +321,6 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
     func prepareMaskLatents(input: SampleInput, generator: RandomGenerator) throws -> (MLShapedArray<Float32>?, MLShapedArray<Float32>?) {
         guard let image = input.initImage, let mask = input.inpaintMask else {
             return (nil, nil)
-        }
-        guard let encoder else {
-            throw StableDiffusionError.encoderMissing
         }
         var imageData = image.toShapedArray()
         var maskData = mask.toAlphaShapedArray()
