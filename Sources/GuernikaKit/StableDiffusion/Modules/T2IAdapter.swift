@@ -113,7 +113,7 @@ public class T2IAdapter: ConditioningModule {
         return result.featureValueDictionary.compactMapValues { value in
             guard let sample = value.multiArrayValue else { return nil }
             var noise = MLShapedArray<Float32>(MLMultiArray(
-                concatenating: [sample, sample],
+                concatenating: [MLMultiArray](repeating: sample, count: latent.shape[0]),
                 axis: 0,
                 dataType: .float32
             ))

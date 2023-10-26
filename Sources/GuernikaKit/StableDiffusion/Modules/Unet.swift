@@ -16,6 +16,7 @@ public class Unet {
         case refiner
         case inpaint
         case instructions
+        case lcm
         case unknown
         
         public init(from decoder: Swift.Decoder) throws {
@@ -61,6 +62,7 @@ public class Unet {
     public let supportsAdapter: Bool
     public let supportsControlNet: Bool
     public let hiddenSize: Int
+    public let timeCondProjDim: Int?
 
     /// Creates a U-Net noise prediction model
     ///
@@ -95,6 +97,7 @@ public class Unet {
         supportsAdapter = metadata.inputSchema[name: "adapter_res_samples_00"] != nil
         supportsControlNet = metadata.inputSchema[name: "mid_block_res_sample"] != nil
         hiddenSize = metadata.hiddenSize!
+        timeCondProjDim = metadata.inputSchema[name: "timestep_cond"]?.shape[1]
         attentionImplementation = metadata.attentionImplementation
         
         if let info = try? Info.infoForModel(at: urls[0]) {
@@ -109,6 +112,8 @@ public class Unet {
                 function = .instructions
             } else if sampleShape[1] == 9 {
                 function = .inpaint
+            } else if metadata.inputSchema[name: "timestep_cond"] != nil {
+                function = .lcm
             } else {
                 function = .standard
             }
@@ -139,8 +144,9 @@ public class Unet {
     /// - Returns: Array of predicted noise residuals
     func predictNoise(
         latents: [MLShapedArray<Float32>],
-        additionalResiduals: [String: MLShapedArray<Float32>]?,
+        additionalResiduals: [String: MLShapedArray<Float32>]? = nil,
         timeStep: Double,
+        timeStepCond: MLShapedArray<Float32>? = nil,
         hiddenStates: MLShapedArray<Float32>,
         textEmbeddings: MLShapedArray<Float32>? = nil,
         timeIds: MLShapedArray<Float32>? = nil
@@ -155,6 +161,9 @@ public class Unet {
                 "timestep" : MLMultiArray(t),
                 "encoder_hidden_states": MLMultiArray(hiddenStates)
             ]
+            if let timeStepCond {
+                dict["timestep_cond"] = MLMultiArray(timeStepCond)
+            }
             if let textEmbeddings, let timeIds {
                 dict["text_embeds"] = MLMultiArray(textEmbeddings)
                 dict["time_ids"] = MLMultiArray(timeIds)
