@@ -170,12 +170,12 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
             var latentUnetInput = MLShapedArray<Float32>(concatenating: [latent, latent], alongAxis: 0)
             latentUnetInput = scheduler.scaleModelInput(timeStep: t, sample: latentUnetInput)
             
-            let additionalResiduals = try adapterState ?? (try conditioningInput.predictControlNetResiduals(
+            let additionalResiduals = (try conditioningInput.predictControlNetResiduals(
                 latent: latentUnetInput,
                 timeStep: t,
                 hiddenStates: hiddenStates,
                 reduceMemory: reduceMemory
-            ))
+            ) ?? [:]).merging(adapterState ?? [:], uniquingKeysWith: { x, _ in x })
             
             if unet.function == .inpaint {
                 guard let mask, let maskedImage else {
