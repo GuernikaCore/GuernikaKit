@@ -150,7 +150,10 @@ public class LatentConsistencyModelPipeline: StableDiffusionPipeline {
         
         let generator: RandomGenerator = TorchRandomGenerator(seed: input.seed)
         let scheduler: Scheduler = LCMScheduler(
-            strength: input.strength, stepCount: input.stepCount, predictionType: unet.predictionType
+            strength: input.strength,
+            stepCount: input.stepCount,
+            originalStepCount: input.originalStepCount ?? 50,
+            predictionType: unet.predictionType
         )
 
         // Generate random latent sample from specified seed
@@ -166,13 +169,17 @@ public class LatentConsistencyModelPipeline: StableDiffusionPipeline {
         }
         let wEmbedding = getGuidanceScaleEmbedding(w: input.guidanceScale - 1, embeddingDim: timeCondProjDim)
         
-        let adapterState = try conditioningInput.predictAdapterResiduals(latent: latent, reduceMemory: reduceMemory)
+        let adapterState = try conditioningInput.predictAdapterResiduals(
+            latent: latent,
+            batchSize: unet.latentSampleShape[0],
+            reduceMemory: reduceMemory
+        )
 
         // De-noising loop
         for (step, t) in scheduler.timeSteps.enumerated() {
             // Predict noise residuals from latent samples
             // and current time step conditioned on hidden states
-            var noisePrediction = try unet.predictNoise(
+            let noisePrediction = try unet.predictNoise(
                 latents: [latent],
                 additionalResiduals: adapterState,
                 timeStep: t,
@@ -317,7 +324,7 @@ public class LatentConsistencyModelPipeline: StableDiffusionPipeline {
         }
         
         // Encode the mask image into latents space so we can concatenate it to the latents
-        var maskedImageLatent = try encoder.encode(imageData, generator: generator)
+        let maskedImageLatent = try encoder.encode(imageData, generator: generator)
         let resizedMask = mask.scaledAspectFill(size: CGSize(width: maskedImageLatent.shape[3], height: maskedImageLatent.shape[2]))
         maskData = resizedMask.toAlphaShapedArray()
         

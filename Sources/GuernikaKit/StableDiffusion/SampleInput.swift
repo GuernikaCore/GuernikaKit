@@ -17,6 +17,7 @@ public struct SampleInput: Hashable {
     public var strength: Float?
     public var seed: UInt32
     public var stepCount: Int
+    public var originalStepCount: Int?
     /// Controls the influence of the text prompt on sampling process (0=random images)
     public var guidanceScale: Float
     public var imageGuidanceScale: Float?
@@ -29,6 +30,7 @@ public struct SampleInput: Hashable {
         negativePrompt: String = "",
         seed: UInt32 = UInt32.random(in: 0...UInt32.max),
         stepCount: Int = 20,
+        originalStepCount: Int? = nil,
         guidanceScale: Float = 7.5,
         scheduler: Schedulers = .pndm
     ) {
@@ -40,6 +42,7 @@ public struct SampleInput: Hashable {
         self.inpaintMask = nil
         self.seed = seed
         self.stepCount = stepCount
+        self.originalStepCount = originalStepCount
         self.guidanceScale = guidanceScale
         self.scheduler = scheduler
     }
@@ -53,6 +56,7 @@ public struct SampleInput: Hashable {
         strength: Float = 0.75,
         seed: UInt32 = UInt32.random(in: 0...UInt32.max),
         stepCount: Int = 20,
+        originalStepCount: Int? = nil,
         guidanceScale: Float = 7.5,
         scheduler: Schedulers = .pndm
     ) {
@@ -65,6 +69,7 @@ public struct SampleInput: Hashable {
         self.inpaintMask = inpaintMask
         self.seed = seed
         self.stepCount = stepCount
+        self.originalStepCount = originalStepCount
         self.guidanceScale = guidanceScale
         self.scheduler = scheduler
     }
@@ -76,6 +81,7 @@ public struct SampleInput: Hashable {
         initImage: CGImage,
         seed: UInt32 = UInt32.random(in: 0...UInt32.max),
         stepCount: Int = 20,
+        originalStepCount: Int? = nil,
         guidanceScale: Float = 7.5,
         imageGuidanceScale: Float = 1.5,
         scheduler: Schedulers = .pndm
@@ -88,6 +94,7 @@ public struct SampleInput: Hashable {
         self.inpaintMask = nil
         self.seed = seed
         self.stepCount = stepCount
+        self.originalStepCount = originalStepCount
         self.guidanceScale = guidanceScale
         self.imageGuidanceScale = imageGuidanceScale
         self.scheduler = scheduler
@@ -103,7 +110,8 @@ public extension SampleInput {
         inpaintMask: OSImage? = nil,
         strength: Float = 0.75,
         seed: UInt32 = UInt32.random(in: 0...UInt32.max),
-        stepCount: Int = 50,
+        stepCount: Int = 20,
+        originalStepCount: Int? = nil,
         guidanceScale: Float = 7.5,
         scheduler: Schedulers = .pndm
     ) {
@@ -115,6 +123,7 @@ public extension SampleInput {
         self.inpaintMask = inpaintMask?.cgImage!
         self.seed = seed
         self.stepCount = stepCount
+        self.originalStepCount = originalStepCount
         self.guidanceScale = guidanceScale
         self.scheduler = scheduler
     }
@@ -125,7 +134,7 @@ public extension SampleInput {
         negativePrompt: String = "",
         initImage: OSImage,
         seed: UInt32 = UInt32.random(in: 0...UInt32.max),
-        stepCount: Int = 50,
+        stepCount: Int = 20,
         guidanceScale: Float = 7.5,
         imageGuidanceScale: Float = 1.5,
         scheduler: Schedulers = .pndm
