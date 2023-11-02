@@ -160,7 +160,11 @@ public class StableDiffusionPix2PixPipeline: StableDiffusionPipeline {
             encoder.unloadResources()
         }
         
-        let adapterState = try conditioningInput.predictAdapterResiduals(latent: latent, reduceMemory: reduceMemory)
+        let adapterState = try conditioningInput.predictAdapterResiduals(
+            latent: latent,
+            batchSize: unet.latentSampleShape[0],
+            reduceMemory: reduceMemory
+        )
 
         // De-noising loop
         for (step, t) in scheduler.timeSteps.enumerated() {

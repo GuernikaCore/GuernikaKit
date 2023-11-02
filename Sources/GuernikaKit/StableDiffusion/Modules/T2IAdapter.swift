@@ -79,7 +79,8 @@ public class T2IAdapter: ConditioningModule {
     /// - Returns: Array of predicted noise residuals
     func predictResiduals(
         input: ConditioningInput,
-        latent: MLShapedArray<Float32>
+        latent: MLShapedArray<Float32>,
+        batchSize: Int
     ) throws -> [String: MLShapedArray<Float32>]? {
         guard let image = input.image, input.conditioningScale > 0 else { return nil }
         
@@ -113,7 +114,7 @@ public class T2IAdapter: ConditioningModule {
         return result.featureValueDictionary.compactMapValues { value in
             guard let sample = value.multiArrayValue else { return nil }
             var noise = MLShapedArray<Float32>(MLMultiArray(
-                concatenating: [MLMultiArray](repeating: sample, count: latent.shape[0]),
+                concatenating: [MLMultiArray](repeating: sample, count: batchSize),
                 axis: 0,
                 dataType: .float32
             ))
@@ -132,13 +133,15 @@ extension Array where Element == ConditioningInput {
     
     func predictAdapterResiduals(
         latent: MLShapedArray<Float32>,
+        batchSize: Int,
         reduceMemory: Bool
     ) throws -> [String: MLShapedArray<Float32>]? {
         try compactMap { input -> [String: MLShapedArray<Float32>]? in
             guard let adapter = input.module as? T2IAdapter else { return nil }
             let residuals = try adapter.predictResiduals(
                 input: input,
-                latent: latent
+                latent: latent,
+                batchSize: batchSize
             )
             if reduceMemory {
                 adapter.unloadResources()
