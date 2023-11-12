@@ -33,7 +33,7 @@ public extension CGImage {
         var mediumFormat = vImage_CGImageFormat(
             bitsPerComponent: 8 * MemoryLayout<UInt8>.size,
             bitsPerPixel: 8 * MemoryLayout<UInt8>.size * 4,
-            colorSpace: CGColorSpaceCreateDeviceRGB(),
+            colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
             bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.first.rawValue)
         )!
         let width = vImagePixelCount(exactly: width)!
@@ -113,7 +113,7 @@ public extension CGImage {
             height: Int(newSize.height),
             bitsPerComponent: bitsPerComponent,
             bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceRGB(),
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         )!
         context.interpolationQuality = .high

@@ -97,7 +97,7 @@ public class Decoder {
         let cgImage = uint8Image.makeCGImage(cgImageFormat:
                 .init(bitsPerComponent: 8,
                       bitsPerPixel: 3*8,
-                      colorSpace: CGColorSpaceCreateDeviceRGB(),
+                      colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
                       bitmapInfo: bitmapInfo)!)!
         
         return cgImage

@@ -258,7 +258,7 @@ extension StableDiffusionPipeline {
         let cgImage = uint8Image.makeCGImage(cgImageFormat:
                 .init(bitsPerComponent: 8,
                       bitsPerPixel: 3*8,
-                      colorSpace: CGColorSpaceCreateDeviceRGB(),
+                      colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
                       bitmapInfo: bitmapInfo)!)!
         
         guard let filter = CIFilter(name: "CIColorControls") else { return cgImage }

@@ -105,7 +105,7 @@ public struct SafetyChecker {
             height: height,
             bitsPerComponent: 8,
             bytesPerRow: width*4,
-            space: CGColorSpaceCreateDeviceRGB(),
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
             bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
             throw SafetyCheckError.imageResizeFailure
         }
