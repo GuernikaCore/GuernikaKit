@@ -14,8 +14,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/GuernikaCore/Schedulers.git",
       "state" : {
-        "revision" : "beb23c914faca487a08aec6cf61055908d97364e",
-        "version" : "0.9.3"
+        "revision" : "91a26c9b630536feb6a4f675a343ac46f1b96f65",
+        "version" : "0.9.4"
       }
     }
   ],

@@ -58,6 +58,8 @@ extension StableDiffusionPipeline {
     public var sampleSize: CGSize { unet.sampleSize }
     public var minimumSize: CGSize { unet.minimumSize }
     public var maximumSize: CGSize { unet.maximumSize }
+    public var batchSize: Int { unet.batchSize }
+    public var doClassifierFreeGuidance: Bool { batchSize > 1 }
     public var supportsAdapter: Bool { unet.supportsAdapter }
     public var supportsControlNet: Bool { unet.supportsControlNet }
     
@@ -110,14 +112,10 @@ extension StableDiffusionPipeline {
 
     func hiddenStates(prompt: String, negativePrompt: String) throws -> MLShapedArray<Float32> {
         // Encode the input prompt as well as a blank unconditioned input
-        let promptEmbedding: MLShapedArray<Float32>
-        let blankEmbedding: MLShapedArray<Float32>
-        if let overrideTextEncoder {
-            (_, promptEmbedding) = try overrideTextEncoder.encode(prompt)
-            (_, blankEmbedding) = try overrideTextEncoder.encode(negativePrompt)
-        } else {
-            (_, promptEmbedding) = try textEncoder.encode(prompt)
-            (_, blankEmbedding) = try textEncoder.encode(negativePrompt)
+        let (_, promptEmbedding) = try (overrideTextEncoder ?? textEncoder).encode(prompt)
+        var blankEmbedding: MLShapedArray<Float32>?
+        if doClassifierFreeGuidance {
+            (_, blankEmbedding) = try (overrideTextEncoder ?? textEncoder).encode(negativePrompt)
         }
         
         if reduceMemory {
@@ -126,11 +124,14 @@ extension StableDiffusionPipeline {
         }
 
         // Convert to Unet hidden state representation
-        let concatEmbedding: MLShapedArray<Float32> = MLShapedArray<Float32>(
-            concatenating: [blankEmbedding, promptEmbedding],
-            alongAxis: 0
-        )
-        let hiddenStates = toHiddenStates(concatEmbedding)
+        var finalEmbedding: MLShapedArray<Float32> = promptEmbedding
+        if let blankEmbedding {
+            finalEmbedding = MLShapedArray<Float32>(
+                concatenating: [blankEmbedding, promptEmbedding],
+                alongAxis: 0
+            )
+        }
+        let hiddenStates = toHiddenStates(finalEmbedding)
         guard hiddenStates.shape[1] == unet.hiddenSize else {
             throw StableDiffusionError.incompatibleTextEncoder
         }
@@ -151,6 +152,37 @@ extension StableDiffusionPipeline {
             }
         }
         return states
+    }
+    
+    /**
+     See https://github.com/google-research/vdm/blob/dc27b98a554f65cdc654b800da5aa1846545d41b/model_vdm.py#L298
+     
+     Args:
+     timesteps (`torch.Tensor`):
+     generate embedding vectors at these timesteps
+     embedding_dim (`int`, *optional*, defaults to 512):
+     dimension of the embeddings to generate
+     dtype:
+     data type of the generated embeddings
+     
+     Returns:
+     `torch.FloatTensor`: Embedding vectors with shape `(len(timesteps), embedding_dim)`
+     */
+    func getGuidanceScaleEmbedding(w: Float) -> MLShapedArray<Float32>? {
+        guard let embeddingDim = unet.timeCondProjDim else { return nil }
+        let w = Double(w * 1000.0)
+        
+        let halfDim = Int(embeddingDim / 2)
+        let emb = log(10000.0) / Double(halfDim - 1)
+        let emb1 = (0..<halfDim).map { exp(Double($0) * -emb) * w }
+        return MLShapedArray(unsafeUninitializedShape: [1, embeddingDim, 1, 1]) { pointer, _ in
+            for i in 0..<emb1.count {
+                pointer.initializeElement(at: i, to: Float(sin(emb1[i])))
+            }
+            for i in 0..<emb1.count {
+                pointer.initializeElement(at: i + emb1.count, to: Float(sin(emb1[i])))
+            }
+        }
     }
     
     public func decodeToImage(_ latent: MLShapedArray<Float32>) throws -> CGImage? {

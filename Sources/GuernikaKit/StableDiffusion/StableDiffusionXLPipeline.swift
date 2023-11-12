@@ -186,12 +186,24 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
             // target_size
             Float32(sampleSize.height), Float32(sampleSize.width)
         ], shape: [1, 6])
-        timeIds = MLShapedArray<Float32>(concatenating: [timeIds, timeIds], alongAxis: 0)
+        if doClassifierFreeGuidance {
+            timeIds = MLShapedArray<Float32>(concatenating: Array(repeating: timeIds, count: batchSize), alongAxis: 0)
+        }
         
         let generator: RandomGenerator = TorchRandomGenerator(seed: input.seed)
-        let scheduler: Scheduler = input.scheduler.create(
-            strength: input.strength, stepCount: input.stepCount, predictionType: unet.predictionType
-        )
+        let scheduler: Scheduler
+        if doClassifierFreeGuidance {
+            scheduler = input.scheduler.create(
+                strength: input.strength, stepCount: input.stepCount, predictionType: unet.predictionType
+            )
+        } else {
+            scheduler = LCMScheduler(
+                strength: input.strength,
+                stepCount: input.stepCount,
+                originalStepCount: input.originalStepCount ?? 50,
+                predictionType: unet.predictionType
+            )
+        }
 
         // Generate random latent sample from specified seed
         var (latent, noise, imageLatent) = try prepareLatent(input: input, generator: generator, scheduler: scheduler)
@@ -201,17 +213,22 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
             encoder?.unloadResources()
         }
         
+        let wEmbedding = getGuidanceScaleEmbedding(w: input.guidanceScale - 1)
+        
         let adapterState = try conditioningInput.predictAdapterResiduals(
             latent: latent,
-            batchSize: unet.latentSampleShape[0],
+            batchSize: batchSize,
             reduceMemory: reduceMemory
         )
 
         // De-noising loop
         for (step, t) in scheduler.timeSteps.enumerated() {
-            // Expand the latents for classifier-free guidance
-            // and input to the Unet noise prediction model
-            var latentUnetInput = MLShapedArray<Float32>(concatenating: [latent, latent], alongAxis: 0)
+            var latentUnetInput = latent
+            if doClassifierFreeGuidance {
+                // Expand the latents for classifier-free guidance
+                // and input to the Unet noise prediction model
+                latentUnetInput = MLShapedArray<Float32>(concatenating: [latent, latent], alongAxis: 0)
+            }
             latentUnetInput = scheduler.scaleModelInput(timeStep: t, sample: latentUnetInput)
             
             let additionalResiduals = (try conditioningInput.predictControlNetResiduals(
@@ -237,12 +254,15 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
                 latents: [latentUnetInput],
                 additionalResiduals: additionalResiduals,
                 timeStep: t,
+                timeStepCond: wEmbedding,
                 hiddenStates: hiddenStates,
                 textEmbeddings: addedTextEmbeddings,
                 timeIds: timeIds
             )[0]
 
-            noisePrediction = performGuidance(noisePrediction, guidanceScale: input.guidanceScale)
+            if doClassifierFreeGuidance {
+                noisePrediction = performGuidance(noisePrediction, guidanceScale: input.guidanceScale)
+            }
 
             // Have the scheduler compute the previous (t-1) latent
             // sample given the predicted noise and current sample
@@ -382,6 +402,9 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
         
         // Encode the mask image into latents space so we can concatenate it to the latents
         var maskedImageLatent = try encoder.encode(imageData, scaleFactor: 0.13025, generator: generator)
+        if doClassifierFreeGuidance {
+            maskedImageLatent = MLShapedArray<Float32>(concatenating: [maskedImageLatent, maskedImageLatent], alongAxis: 0)
+        }
         
         let resizedMask = mask.scaledAspectFill(size: CGSize(width: maskedImageLatent.shape[3], height: maskedImageLatent.shape[2]))
         maskData = resizedMask.toAlphaShapedArray()
@@ -391,7 +414,6 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
         if unet.function == .inpaint {
             maskData = MLShapedArray<Float32>(concatenating: [maskData, maskData], alongAxis: 0)
         }
-        maskedImageLatent = MLShapedArray<Float32>(concatenating: [maskedImageLatent, maskedImageLatent], alongAxis: 0)
         
         return (maskData, maskedImageLatent)
     }
@@ -400,25 +422,16 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
         prompt: String, negativePrompt: String
     ) throws -> (MLShapedArray<Float32>, MLShapedArray<Float32>) {
         // Encode the input prompt as well as a blank unconditioned input
-        let promptEmbedding1: MLShapedArray<Float32>
-        let blankEmbedding1: MLShapedArray<Float32>
-        if let overrideTextEncoder {
-            (_, promptEmbedding1) = try overrideTextEncoder.encode(prompt)
-            (_, blankEmbedding1) = try overrideTextEncoder.encode(negativePrompt)
-        } else {
-            (_, promptEmbedding1) = try textEncoder.encode(prompt)
-            (_, blankEmbedding1) = try textEncoder.encode(negativePrompt)
+        let (_, promptEmbedding1) = try (overrideTextEncoder ?? textEncoder).encode(prompt)
+        var blankEmbedding1: MLShapedArray<Float32>?
+        if doClassifierFreeGuidance {
+            (_, blankEmbedding1) = try (overrideTextEncoder ?? textEncoder).encode(negativePrompt)
         }
-        let promptPooledOutputs2: MLShapedArray<Float32>
-        let promptEmbedding2: MLShapedArray<Float32>
-        let blankPooledOutputs2: MLShapedArray<Float32>
-        let blankEmbedding2: MLShapedArray<Float32>
-        if let overrideTextEncoder2 {
-            (promptPooledOutputs2, promptEmbedding2) = try overrideTextEncoder2.encode(prompt)
-            (blankPooledOutputs2, blankEmbedding2) = try overrideTextEncoder2.encode(negativePrompt)
-        } else {
-            (promptPooledOutputs2, promptEmbedding2) = try textEncoder2.encode(prompt)
-            (blankPooledOutputs2, blankEmbedding2) = try textEncoder2.encode(negativePrompt)
+        let (promptPooledOutputs2, promptEmbedding2) = try (overrideTextEncoder2 ?? textEncoder2).encode(prompt)
+        var blankPooledOutputs2: MLShapedArray<Float32>?
+        var blankEmbedding2: MLShapedArray<Float32>?
+        if doClassifierFreeGuidance {
+            (blankPooledOutputs2, blankEmbedding2) = try (overrideTextEncoder2 ?? textEncoder2).encode(negativePrompt)
         }
         
         if reduceMemory {
@@ -432,25 +445,34 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
             concatenating: [promptEmbedding1, promptEmbedding2],
             alongAxis: 2
         )
-        let blankEmbedding: MLShapedArray<Float32> = MLShapedArray<Float32>(
-            concatenating: [blankEmbedding1, blankEmbedding2],
-            alongAxis: 2
-        )
+        var blankEmbedding: MLShapedArray<Float32>?
+        if let blankEmbedding1, let blankEmbedding2 {
+            blankEmbedding = MLShapedArray<Float32>(
+                concatenating: [blankEmbedding1, blankEmbedding2],
+                alongAxis: 2
+            )
+        }
 
         // Convert to Unet hidden state representation
-        let concatEmbedding: MLShapedArray<Float32> = MLShapedArray<Float32>(
-            concatenating: [blankEmbedding, promptEmbedding],
-            alongAxis: 0
-        )
-        let hiddenStates = toHiddenStates(concatEmbedding)
+        var finalEmbedding: MLShapedArray<Float32> = promptEmbedding
+        if let blankEmbedding {
+            finalEmbedding = MLShapedArray<Float32>(
+                concatenating: [blankEmbedding, promptEmbedding],
+                alongAxis: 0
+            )
+        }
+        let hiddenStates = toHiddenStates(finalEmbedding)
         guard hiddenStates.shape[1] == unet.hiddenSize else {
             throw StableDiffusionError.incompatibleTextEncoder
         }
         
-        let addedTextEmbeddings: MLShapedArray<Float32> = MLShapedArray<Float32>(
-            concatenating: [blankPooledOutputs2, promptPooledOutputs2],
-            alongAxis: 0
-        )
+        var addedTextEmbeddings: MLShapedArray<Float32> = promptPooledOutputs2
+        if let blankPooledOutputs2 {
+            addedTextEmbeddings = MLShapedArray<Float32>(
+                concatenating: [blankPooledOutputs2, promptPooledOutputs2],
+                alongAxis: 0
+            )
+        }
         return (hiddenStates, addedTextEmbeddings)
     }
     

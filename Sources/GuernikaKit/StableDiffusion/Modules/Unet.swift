@@ -16,7 +16,6 @@ public class Unet {
         case refiner
         case inpaint
         case instructions
-        case lcm
         case unknown
         
         public init(from decoder: Swift.Decoder) throws {
@@ -56,6 +55,7 @@ public class Unet {
     /// The expected shape of the models timestemp input
     let timestepShape: [Int]
     let latentSampleShape: [Int]
+    public var batchSize: Int { latentSampleShape[0] }
     public let sampleSize: CGSize
     public let minimumSize: CGSize
     public let maximumSize: CGSize
@@ -112,8 +112,6 @@ public class Unet {
                 function = .instructions
             } else if sampleShape[1] == 9 {
                 function = .inpaint
-            } else if metadata.inputSchema[name: "timestep_cond"] != nil {
-                function = .lcm
             } else {
                 function = .standard
             }

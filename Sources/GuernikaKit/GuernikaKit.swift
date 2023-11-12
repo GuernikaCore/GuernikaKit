@@ -54,22 +54,6 @@ public enum GuernikaKit {
         }
         
         switch unet.function {
-        case .lcm:
-            var encoder: Encoder? = nil
-            if FileManager.default.fileExists(atPath: encoderUrl.path(percentEncoded: false)) {
-                encoder = try Encoder(modelAt: encoderUrl, configuration: unet.configuration)
-            }
-            let textEncoder = try TextEncoder(modelAt: textEncoderUrl, configuration: unet.configuration)
-            let reduceMemory = physicalMemory < 6
-            return LatentConsistencyModelPipeline(
-                baseUrl: baseUrl,
-                textEncoder: textEncoder,
-                encoder: encoder,
-                unet: unet,
-                decoder: decoder,
-                safetyChecker: safetyChecker,
-                reduceMemory: reduceMemory
-            )
         case .refiner:
             let textEncoder2Url = baseUrl.appending(path: "TextEncoder2.mlmodelc")
             let textEncoder2 = try TextEncoder(modelAt: textEncoder2Url, configuration: unet.configuration)

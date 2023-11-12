@@ -149,9 +149,19 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
         let hiddenStates = try hiddenStates(prompt: input.prompt, negativePrompt: input.negativePrompt)
         
         let generator: RandomGenerator = TorchRandomGenerator(seed: input.seed)
-        let scheduler: Scheduler = input.scheduler.create(
-            strength: input.strength, stepCount: input.stepCount, predictionType: unet.predictionType
-        )
+        let scheduler: Scheduler
+        if doClassifierFreeGuidance {
+            scheduler = input.scheduler.create(
+                strength: input.strength, stepCount: input.stepCount, predictionType: unet.predictionType
+            )
+        } else {
+            scheduler = LCMScheduler(
+                strength: input.strength,
+                stepCount: input.stepCount,
+                originalStepCount: input.originalStepCount ?? 50,
+                predictionType: unet.predictionType
+            )
+        }
 
         // Generate random latent sample from specified seed
         var (latent, noise, imageLatent) = try prepareLatent(input: input, generator: generator, scheduler: scheduler)
@@ -161,17 +171,22 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
             encoder?.unloadResources()
         }
         
+        let wEmbedding = getGuidanceScaleEmbedding(w: input.guidanceScale - 1)
+        
         let adapterState = try conditioningInput.predictAdapterResiduals(
             latent: latent,
-            batchSize: unet.latentSampleShape[0],
+            batchSize: batchSize,
             reduceMemory: reduceMemory
         )
 
         // De-noising loop
         for (step, t) in scheduler.timeSteps.enumerated() {
-            // Expand the latents for classifier-free guidance
-            // and input to the Unet noise prediction model
-            var latentUnetInput = MLShapedArray<Float32>(concatenating: [latent, latent], alongAxis: 0)
+            var latentUnetInput = latent
+            if doClassifierFreeGuidance {
+                // Expand the latents for classifier-free guidance
+                // and input to the Unet noise prediction model
+                latentUnetInput = MLShapedArray<Float32>(concatenating: [latent, latent], alongAxis: 0)
+            }
             latentUnetInput = scheduler.scaleModelInput(timeStep: t, sample: latentUnetInput)
             
             let additionalResiduals = (try conditioningInput.predictControlNetResiduals(
@@ -195,10 +210,13 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
                 latents: [latentUnetInput],
                 additionalResiduals: additionalResiduals,
                 timeStep: t,
+                timeStepCond: wEmbedding,
                 hiddenStates: hiddenStates
             )[0]
 
-            noisePrediction = performGuidance(noisePrediction, guidanceScale: input.guidanceScale)
+            if doClassifierFreeGuidance {
+                noisePrediction = performGuidance(noisePrediction, guidanceScale: input.guidanceScale)
+            }
 
             // Have the scheduler compute the previous (t-1) latent
             // sample given the predicted noise and current sample
@@ -338,6 +356,9 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
         
         // Encode the mask image into latents space so we can concatenate it to the latents
         var maskedImageLatent = try encoder.encode(imageData, generator: generator)
+        if doClassifierFreeGuidance {
+            maskedImageLatent = MLShapedArray<Float32>(concatenating: [maskedImageLatent, maskedImageLatent], alongAxis: 0)
+        }
         
         let resizedMask = mask.scaledAspectFill(size: CGSize(width: maskedImageLatent.shape[3], height: maskedImageLatent.shape[2]))
         maskData = resizedMask.toAlphaShapedArray()
@@ -347,7 +368,6 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
         if unet.function == .inpaint {
             maskData = MLShapedArray<Float32>(concatenating: [maskData, maskData], alongAxis: 0)
         }
-        maskedImageLatent = MLShapedArray<Float32>(concatenating: [maskedImageLatent, maskedImageLatent], alongAxis: 0)
         
         return (maskData, maskedImageLatent)
     }

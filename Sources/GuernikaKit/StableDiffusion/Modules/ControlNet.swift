@@ -105,6 +105,30 @@ public class ControlNet: ConditioningModule {
         let result = try model.perform { model in
             let timestepDescription = model.modelDescription.inputDescriptionsByName["timestep"]!
             let timestepShape = timestepDescription.multiArrayConstraint!.shape.map { $0.intValue }
+            
+            var latent = latent
+            var hiddenStates = hiddenStates
+            var textEmbeddings = textEmbeddings
+            var timeIds = timeIds
+            if latent.shape[0] < timestepShape[0] {
+                // Make sure the ControlNet input has the expected shape
+                latent = MLShapedArray<Float32>(
+                    concatenating: Array(repeating: latent, count: timestepShape[0]),
+                    alongAxis: 0
+                )
+                hiddenStates = MLShapedArray<Float32>(
+                    concatenating: Array(repeating: hiddenStates, count: timestepShape[0]),
+                    alongAxis: 0
+                )
+                textEmbeddings = textEmbeddings.map { MLShapedArray<Float32>(
+                    concatenating: Array(repeating: $0, count: timestepShape[0]),
+                    alongAxis: 0
+                ) }
+                timeIds = timeIds.map { MLShapedArray<Float32>(
+                    concatenating: Array(repeating: $0, count: timestepShape[0]),
+                    alongAxis: 0
+                ) }
+            }
 
             // Match time step batch dimension to the model / latent samples
             let t = MLShapedArray<Float32>(repeating: Float32(timeStep), shape: timestepShape)
@@ -128,14 +152,19 @@ public class ControlNet: ConditioningModule {
         // To conform to this func return type make sure we return float32
         // Use the fact that the concatenating constructor for MLMultiArray
         // can do type conversion:
-
-        return result.featureValueDictionary.compactMapValues { value in
+        return result.featureValueDictionary.compactMapValues { value -> MLShapedArray<Float32>? in
             guard let sample = value.multiArrayValue else { return nil }
             var noise = MLShapedArray<Float32>(MLMultiArray(
                 concatenating: [sample],
                 axis: 0,
                 dataType: .float32
             ))
+            if noise.shape[0] > latent.shape[0] {
+                noise = MLShapedArray(
+                    scalars: noise[1].scalars,
+                    shape: noise.shape.replacing([noise.shape[0]], with: [latent.shape[0]], maxReplacements: 1)
+                )
+            }
             noise.scale(input.conditioningScale)
             return noise
         }
