@@ -21,6 +21,7 @@ public class Encoder {
     
     public let sampleSize: CGSize
     let cache: Cache<CGImage, MLShapedArray<Float32>> = Cache(maxItems: 2)
+    let scaleFactor: Float32?
     
     /// Create encoder from Core ML model
     ///
@@ -32,6 +33,7 @@ public class Encoder {
         self.model = ManagedMLModel(modelAt: url, configuration: configuration)
         
         let metadata = try CoreMLMetadata.metadataForModel(at: url)
+        scaleFactor = metadata.userDefinedMetadata?["scaling_factor"].flatMap { Float32($0) }
         let inputImageShape = metadata.inputSchema[name: "z"]!.shape
         let width: Int = inputImageShape[3]
         let height: Int = inputImageShape[2]
@@ -84,25 +86,37 @@ public class Encoder {
         let outputValue = result.featureValue(for: outputName)!.multiArrayValue!
         let output = MLShapedArray<Float32>(converting: outputValue)
         
-        // DiagonalGaussianDistribution
-        let mean = output[0][0..<4]
-        let std = MLShapedArray<Float32>(
-            scalars: output[0][4..<8].scalars.map {
-                let logvar = min(max($0, -30), 20)
-                return exp(0.5 * logvar)
-            },
-            shape: mean.shape
-        )
-        let latent = MLShapedArray<Float32>(
-            converting: generator.nextArray(
-                shape: mean.shape,
-                mean: mean.scalars.map { Double($0) },
-                stdev: std.scalars.map { Double($0) }
+        let latent: MLShapedArray<Float32>
+        let latentShape: [Int]
+        
+        if output.shape[1] > 4 {
+            // DiagonalGaussianDistribution
+            let mean = output[0][0..<4]
+            let std = MLShapedArray<Float32>(
+                scalars: output[0][4..<8].scalars.map {
+                    let logvar = min(max($0, -30), 20)
+                    return exp(0.5 * logvar)
+                },
+                shape: mean.shape
             )
-        )
+            latent = MLShapedArray<Float32>(
+                converting: generator.nextArray(
+                    shape: mean.shape,
+                    mean: mean.scalars.map { Double($0) },
+                    stdev: std.scalars.map { Double($0) }
+                )
+            )
+            latentShape = [1] + latent.shape
+        } else {
+            // TinyEncoder does not need DiagonalGaussianDistribution
+            latent = output
+            latentShape = output.shape
+        }
         
         // Reference pipeline scales the latent after encoding
-        let latentScaled = MLShapedArray(unsafeUninitializedShape: [1] + latent.shape) { scalars, _ in
+        let scaleFactor = self.scaleFactor ?? scaleFactor
+        guard scaleFactor != 1 else { return latent }
+        let latentScaled = MLShapedArray(unsafeUninitializedShape: latentShape) { scalars, _ in
             latent.withUnsafeShapedBufferPointer { latent, _, _ in
                 vDSP.multiply(scaleFactor, latent, result: &scalars)
             }

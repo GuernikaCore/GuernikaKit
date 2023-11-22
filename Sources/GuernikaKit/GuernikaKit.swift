@@ -47,7 +47,7 @@ public enum GuernikaKit {
         let decoderUrl = baseUrl.appending(path: "VAEDecoder.mlmodelc")
         let safetyCheckerUrl = baseUrl.appending(path: "SafetyChecker.mlmodelc")
         
-        let decoder = Decoder(modelAt: decoderUrl, configuration: unet.configuration)
+        let decoder = try Decoder(modelAt: decoderUrl, configuration: unet.configuration)
         var safetyChecker: SafetyChecker? = nil
         if FileManager.default.fileExists(atPath: safetyCheckerUrl.path(percentEncoded: false)) {
             safetyChecker = SafetyChecker(modelAt: safetyCheckerUrl, configuration: unet.configuration)

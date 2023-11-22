@@ -17,6 +17,7 @@ public class Decoder {
         get { model.configuration }
         set { model.configuration = newValue }
     }
+    let scaleFactor: Float32?
     
     /// Create decoder from Core ML model
     ///
@@ -24,7 +25,9 @@ public class Decoder {
     ///     - url: Location of compiled VAE decoder Core ML model
     ///     - configuration: configuration to be used when the model is loaded
     /// - Returns: A decoder that will lazily load its required resources when needed or requested
-    public init(modelAt url: URL, configuration: MLModelConfiguration) {
+    public init(modelAt url: URL, configuration: MLModelConfiguration) throws {
+        let metadata = try CoreMLMetadata.metadataForModel(at: url)
+        scaleFactor = metadata.userDefinedMetadata?["scaling_factor"].flatMap { Float32($0) }
         self.model = ManagedMLModel(modelAt: url, configuration: configuration)
     }
     
@@ -39,6 +42,8 @@ public class Decoder {
     ///    - latents: Batch of latent samples to decode
     ///  - Returns: decoded images
     public func decode(_ latent: MLShapedArray<Float32>, scaleFactor: Float32 = 0.18215) throws -> CGImage {
+        // Give preference to the default scaling factor of the model
+        let scaleFactor = self.scaleFactor ?? scaleFactor
         let result = try model.perform { model in
             let inputName = model.modelDescription.inputDescriptionsByName.first!.key
             // Reference pipeline scales the latent samples before decoding
