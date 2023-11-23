@@ -28,7 +28,7 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
         }
     }
     /// Model used to generate initial image for latent diffusion process
-    var encoder: Encoder? = nil
+    public var encoder: Encoder? = nil
     /// Models used to control diffusion models by adding extra conditions
     public var conditioningInput: [ConditioningInput] = []
     /// Model used to predict noise residuals given an input, diffusion time step, and conditional embedding

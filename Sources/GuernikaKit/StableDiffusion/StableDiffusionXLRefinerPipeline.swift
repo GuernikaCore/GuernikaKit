@@ -28,7 +28,7 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
         }
     }
     /// Model used to generate initial image for latent diffusion process
-    var encoder: Encoder
+    public var encoder: Encoder
     /// Models used to control diffusion models by adding extra conditions
     public var conditioningInput: [ConditioningInput] = []
     public var supportsControlNet: Bool { false }
