@@ -191,19 +191,12 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
         }
         
         let generator: RandomGenerator = TorchRandomGenerator(seed: input.seed)
-        let scheduler: Scheduler
-        if doClassifierFreeGuidance {
-            scheduler = input.scheduler.create(
-                strength: input.strength, stepCount: input.stepCount, predictionType: unet.predictionType
-            )
-        } else {
-            scheduler = LCMScheduler(
-                strength: input.strength,
-                stepCount: input.stepCount,
-                originalStepCount: input.originalStepCount ?? 50,
-                predictionType: unet.predictionType
-            )
-        }
+        let scheduler: Scheduler = input.scheduler.create(
+            strength: input.strength,
+            stepCount: input.stepCount,
+            originalStepCount: input.originalStepCount,
+            predictionType: unet.predictionType
+        )
 
         // Generate random latent sample from specified seed
         var (latent, noise, imageLatent) = try prepareLatent(input: input, generator: generator, scheduler: scheduler)

@@ -149,7 +149,10 @@ public class StableDiffusionPix2PixPipeline: StableDiffusionPipeline {
         
         let generator: RandomGenerator = TorchRandomGenerator(seed: input.seed)
         let scheduler: Scheduler = input.scheduler.create(
-            strength: input.strength, stepCount: input.stepCount, predictionType: unet.predictionType
+            strength: input.strength,
+            stepCount: input.stepCount,
+            originalStepCount: input.originalStepCount,
+            predictionType: unet.predictionType
         )
 
         // Generate random latent sample from specified seed

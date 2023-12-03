@@ -47,9 +47,13 @@ public class Decoder {
         let result = try model.perform { model in
             let inputName = model.modelDescription.inputDescriptionsByName.first!.key
             // Reference pipeline scales the latent samples before decoding
-            let sampleScaled = MLShapedArray(unsafeUninitializedShape: latent.shape) { scalars, _ in
-                latent.withUnsafeShapedBufferPointer { sample, _, _ in
-                    vDSP.divide(sample, scaleFactor, result: &scalars)
+            let sampleScaled = if scaleFactor == 1 {
+                latent
+            } else {
+                MLShapedArray(unsafeUninitializedShape: latent.shape) { scalars, _ in
+                    latent.withUnsafeShapedBufferPointer { sample, _, _ in
+                        vDSP.divide(sample, scaleFactor, result: &scalars)
+                    }
                 }
             }
             
