@@ -51,6 +51,9 @@ public class Unet {
     public let attentionImplementation: AttentionImplementation
     public let function: Function
     public let predictionType: PredictionType
+    public let schedulerSetAlphaToOne: Bool
+    public let schedulerStepsOffset: Int
+    public let timestepSpacing: TimestepSpacing?
     
     /// The expected shape of the models timestemp input
     let timestepShape: [Int]
@@ -120,6 +123,21 @@ public class Unet {
             } else {
                 predictionType = .epsilon
             }
+        }
+        if let timestepSpacingString = metadata.userDefinedMetadata?["timestep_spacing"] {
+            timestepSpacing = TimestepSpacing(rawValue: timestepSpacingString) ?? .leading
+        } else {
+            timestepSpacing = .leading
+        }
+        if let stepsOffsetString = metadata.userDefinedMetadata?["steps_offset"], let stepsOffset = Int(stepsOffsetString) {
+            schedulerStepsOffset = stepsOffset
+        } else {
+            schedulerStepsOffset = 1
+        }
+        if let setAlphaToOne = metadata.userDefinedMetadata?["set_alpha_to_one"] {
+            schedulerSetAlphaToOne = setAlphaToOne == "true"
+        } else {
+            schedulerSetAlphaToOne = false
         }
         
         let configuration = configuration ?? attentionImplementation.preferredModelConfiguration
