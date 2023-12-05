@@ -152,7 +152,10 @@ public class StableDiffusionPix2PixPipeline: StableDiffusionPipeline {
             strength: input.strength,
             stepCount: input.stepCount,
             originalStepCount: input.originalStepCount,
-            predictionType: unet.predictionType
+            setAlphaToOne: unet.schedulerSetAlphaToOne,
+            stepsOffset: unet.schedulerStepsOffset,
+            predictionType: unet.predictionType,
+            timestepSpacing: unet.timestepSpacing
         )
 
         // Generate random latent sample from specified seed
