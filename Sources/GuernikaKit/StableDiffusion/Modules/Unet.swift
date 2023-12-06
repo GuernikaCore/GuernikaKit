@@ -83,8 +83,12 @@ public class Unet {
     ///   - urls: Location of chunked U-Net via urls to each compiled chunk
     ///   - configuration: Configuration to be used when the model is loaded
     /// - Returns: U-net model that will lazily load its required resources when needed or requested
-    public init(chunksAt urls: [URL], configuration: MLModelConfiguration? = nil) throws {
+    public convenience init(chunksAt urls: [URL], configuration: MLModelConfiguration? = nil) throws {
         let metadata = try CoreMLMetadata.metadataForModel(at: urls[0])
+        self.init(chunksAt: urls, metadata: metadata, configuration: configuration)
+    }
+    
+    public init(chunksAt urls: [URL], metadata: CoreMLMetadata, configuration: MLModelConfiguration? = nil) {
         timestepShape = metadata.inputSchema[name: "timestep"]!.shape
         let sampleInput = metadata.inputSchema[name: "sample"]!
         let sampleShape = sampleInput.shape

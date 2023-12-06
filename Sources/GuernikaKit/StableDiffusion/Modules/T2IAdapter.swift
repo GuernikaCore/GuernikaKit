@@ -35,9 +35,13 @@ public class T2IAdapter: ConditioningModule {
     ///   - url: Location of single U-Net  compiled Core ML model
     ///   - configuration: Configuration to be used when the model is loaded
     /// - Returns: U-net model that will lazily load its required resources when needed or requested
-    public init(modelAt url: URL, configuration: MLModelConfiguration? = nil) throws {
-        self.url = url
+    public convenience init(modelAt url: URL, configuration: MLModelConfiguration? = nil) throws {
         let metadata = try CoreMLMetadata.metadataForModel(at: url)
+        try self.init(modelAt: url, metadata: metadata, configuration: configuration)
+    }
+    
+    public init(modelAt url: URL, metadata: CoreMLMetadata, configuration: MLModelConfiguration? = nil) throws {
+        self.url = url
         guard let input = metadata.inputSchema[name: "input"] else {
             throw StableDiffusionError.incompatibleAdapter
         }

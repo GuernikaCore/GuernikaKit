@@ -25,8 +25,12 @@ public class Decoder {
     ///     - url: Location of compiled VAE decoder Core ML model
     ///     - configuration: configuration to be used when the model is loaded
     /// - Returns: A decoder that will lazily load its required resources when needed or requested
-    public init(modelAt url: URL, configuration: MLModelConfiguration) throws {
+    public convenience init(modelAt url: URL, configuration: MLModelConfiguration) throws {
         let metadata = try CoreMLMetadata.metadataForModel(at: url)
+        try self.init(modelAt: url, metadata: metadata, configuration: configuration)
+    }
+    
+    public init(modelAt url: URL, metadata: CoreMLMetadata, configuration: MLModelConfiguration) throws {
         scaleFactor = metadata.userDefinedMetadata?["scaling_factor"].flatMap { Float32($0) }
         self.model = ManagedMLModel(modelAt: url, configuration: configuration)
     }

@@ -8,10 +8,10 @@
 import CoreML
 import Foundation
 
-struct CoreMLMetadata: Decodable {
-    let mlProgramOperationTypeHistogram: [String: Int]
-    let inputSchema: [Input]
-    let userDefinedMetadata: [String: String]?
+public struct CoreMLMetadata: Decodable {
+    public let mlProgramOperationTypeHistogram: [String: Int]
+    public let inputSchema: [Input]
+    public let userDefinedMetadata: [String: String]?
     
     var attentionImplementation: AttentionImplementation {
         mlProgramOperationTypeHistogram["Ios16.einsum"] != nil ? .splitEinsum : .original
@@ -29,11 +29,11 @@ struct CoreMLMetadata: Decodable {
         return metadatas.first!
     }
     
-    struct Input: Decodable {
-        let name: String
-        let shape: [Int]
-        let shapeRange: [[Int]]
-        let hasShapeFlexibility: Bool
+    public struct Input: Decodable {
+        public let name: String
+        public let shape: [Int]
+        public let shapeRange: [[Int]]
+        public let hasShapeFlexibility: Bool
         
         enum CodingKeys: CodingKey {
             case name
@@ -42,7 +42,7 @@ struct CoreMLMetadata: Decodable {
             case hasShapeFlexibility
         }
         
-        init(from decoder: Swift.Decoder) throws {
+        public init(from decoder: Swift.Decoder) throws {
             let container: KeyedDecodingContainer<CodingKeys> = try decoder.container(keyedBy: CodingKeys.self)
             self.name = try container.decode(String.self, forKey: .name)
             let shapeString = try container.decode(String.self, forKey: .shape)
@@ -59,14 +59,36 @@ struct CoreMLMetadata: Decodable {
                 self.shapeRange = shape.map { [$0] }
             }
         }
+        
+        public init(name: String, shape: [Int], shapeRange: [[Int]]?) {
+            self.name = name
+            self.shape = shape
+            if let shapeRange {
+                self.shapeRange = shapeRange
+                self.hasShapeFlexibility = true
+            } else {
+                self.shapeRange = shape.map { [$0] }
+                self.hasShapeFlexibility = false
+            }
+        }
+    }
+    
+    public init(
+        mlProgramOperationTypeHistogram: [String : Int] = [:],
+        inputSchema: [Input] = [],
+        userDefinedMetadata: [String : String]? = nil
+    ) {
+        self.mlProgramOperationTypeHistogram = mlProgramOperationTypeHistogram
+        self.inputSchema = inputSchema
+        self.userDefinedMetadata = userDefinedMetadata
     }
 }
 
 fileprivate extension String {
     var shapeArray: [Int] {
         self[self.index(after: startIndex)..<index(before: endIndex)]
-                        .split(separator: ", ")
-                        .compactMap { Int($0) }
+            .split(separator: ", ")
+            .compactMap { Int($0) }
     }
     
     var shapeRangeArray: [[Int]] {

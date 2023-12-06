@@ -29,10 +29,14 @@ public class Encoder {
     ///     - url: Location of compiled VAE encoder Core ML model
     ///     - configuration: configuration to be used when the model is loaded
     /// - Returns: A encoder that will lazily load its required resources when needed or requested
-    public init(modelAt url: URL, configuration: MLModelConfiguration) throws {
+    public convenience init(modelAt url: URL, configuration: MLModelConfiguration) throws {
+        let metadata = try CoreMLMetadata.metadataForModel(at: url)
+        try self.init(modelAt: url, metadata: metadata, configuration: configuration)
+    }
+    
+    public init(modelAt url: URL, metadata: CoreMLMetadata, configuration: MLModelConfiguration) throws {
         self.model = ManagedMLModel(modelAt: url, configuration: configuration)
         
-        let metadata = try CoreMLMetadata.metadataForModel(at: url)
         scaleFactor = metadata.userDefinedMetadata?["scaling_factor"].flatMap { Float32($0) }
         let inputImageShape = metadata.inputSchema[name: "z"]!.shape
         let width: Int = inputImageShape[3]

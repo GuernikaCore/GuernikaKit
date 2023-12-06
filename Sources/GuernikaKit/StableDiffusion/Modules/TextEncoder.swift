@@ -38,12 +38,23 @@ public class TextEncoder {
     ///   - url: Location of compiled text encoding  Core ML model
     ///   - configuration: configuration to be used when the model is loaded
     /// - Returns: A text encoder that will lazily load its required resources when needed or requested
-    public init(
+    public convenience init(
         modelAt url: URL,
         baseUrl: URL? = nil,
         padToken: String? = nil,
         configuration: MLModelConfiguration? = nil
     ) throws {
+        let metadata = try CoreMLMetadata.metadataForModel(at: url)
+        self.init(modelAt: url, baseUrl: baseUrl, padToken: padToken, metadata: metadata, configuration: configuration)
+    }
+    
+    public init(
+        modelAt url: URL,
+        baseUrl: URL? = nil,
+        padToken: String? = nil,
+        metadata: CoreMLMetadata,
+        configuration: MLModelConfiguration? = nil
+    ) {
         self.modelUrl = url
         if FileManager.default.fileExists(atPath: modelUrl.appending(component: "vocab.json").path(percentEncoded: false)) {
             self.baseUrl = modelUrl
@@ -53,7 +64,6 @@ public class TextEncoder {
             self.baseUrl = modelUrl.deletingLastPathComponent()
         }
         
-        let metadata = try CoreMLMetadata.metadataForModel(at: url)
         self.maxInputLength = metadata.inputSchema[0].shape.last!
         if let hiddenSizeString = metadata.userDefinedMetadata?["hidden_size"], let hiddenSize = Int(hiddenSizeString) {
             self.hiddenSize = hiddenSize
