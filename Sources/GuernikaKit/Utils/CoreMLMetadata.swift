@@ -60,7 +60,7 @@ public struct CoreMLMetadata: Decodable {
             }
         }
         
-        public init(name: String, shape: [Int], shapeRange: [[Int]]?) {
+        public init(name: String, shape: [Int], shapeRange: [[Int]]? = nil) {
             self.name = name
             self.shape = shape
             if let shapeRange {
