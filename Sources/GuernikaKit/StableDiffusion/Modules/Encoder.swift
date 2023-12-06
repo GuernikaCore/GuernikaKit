@@ -14,7 +14,7 @@ import RandomGenerator
 public class Encoder {
     /// VAE encoder model
     let model: ManagedMLModel
-    var configuration: MLModelConfiguration {
+    public var configuration: MLModelConfiguration {
         get { model.configuration }
         set { model.configuration = newValue }
     }

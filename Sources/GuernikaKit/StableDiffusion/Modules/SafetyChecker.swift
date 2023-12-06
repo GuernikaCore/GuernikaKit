@@ -13,7 +13,7 @@ import Foundation
 public struct SafetyChecker {
     /// Safety checking Core ML model
     let model: ManagedMLModel
-    var configuration: MLModelConfiguration {
+    public var configuration: MLModelConfiguration {
         get { model.configuration }
         set { model.configuration = newValue }
     }

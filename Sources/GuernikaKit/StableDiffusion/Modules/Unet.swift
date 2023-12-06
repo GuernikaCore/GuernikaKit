@@ -38,7 +38,7 @@ public class Unet {
     /// It can be in the form of a single model or multiple stages
     let models: [ManagedMLModel]
     var reduceMemory: Bool = false
-    var configuration: MLModelConfiguration {
+    public var configuration: MLModelConfiguration {
         get { models[0].configuration }
         set {
             for model in models {

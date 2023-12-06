@@ -13,7 +13,7 @@ import Foundation
 public class Decoder {
     /// VAE decoder model
     let model: ManagedMLModel
-    var configuration: MLModelConfiguration {
+    public var configuration: MLModelConfiguration {
         get { model.configuration }
         set { model.configuration = newValue }
     }

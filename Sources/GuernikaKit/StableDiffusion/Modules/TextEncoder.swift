@@ -23,7 +23,7 @@ public class TextEncoder {
 
     /// Embedding model
     let model: ManagedMLModel
-    var configuration: MLModelConfiguration {
+    public var configuration: MLModelConfiguration {
         get { model.configuration }
         set { model.configuration = newValue }
     }

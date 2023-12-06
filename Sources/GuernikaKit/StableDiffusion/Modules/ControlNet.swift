@@ -15,7 +15,7 @@ public class ControlNet: ConditioningModule {
     ///
     /// It can be in the form of a single model or multiple stages
     let model: ManagedMLModel
-    var configuration: MLModelConfiguration {
+    public var configuration: MLModelConfiguration {
         get { model.configuration }
         set { model.configuration = newValue }
     }
