@@ -14,7 +14,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/GuernikaCore/RandomGenerator.git", from: "1.0.0"),
-        .package(url: "https://github.com/GuernikaCore/Schedulers.git", from: "1.1.0"),
+        .package(url: "https://github.com/GuernikaCore/Schedulers.git", from: "1.3.0"),
     ],
     targets: [
         .target(

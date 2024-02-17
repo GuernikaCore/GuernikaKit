@@ -33,7 +33,7 @@ public enum GuernikaKit {
             FileManager.default.fileExists(atPath: unetChunk2Url.path) {
             unet = try Unet(chunksAt: [unetChunk1Url, unetChunk2Url])
         } else {
-            throw DiffusionPipelineError.invalidPipeline
+            return try loadWuerstchen(at: baseUrl)
         }
         return try loadStableDiffusion(at: baseUrl, unet: unet)
     }
@@ -117,5 +117,53 @@ public enum GuernikaKit {
                 reduceMemory: reduceMemory
             )
         }
+    }
+    
+    static func loadWuerstchen(at baseUrl: URL) throws -> WuerstchenPipeline {
+        // Device RAM GB
+        let physicalMemory: Float64 = Float64(ProcessInfo.processInfo.physicalMemory) / (1024*1024*1024)
+        
+        let priorUrl = baseUrl.appending(path: "WuerstchenPrior.mlmodelc")
+        let priorChunk1Url = baseUrl.appending(path: "WuerstchenPriorChunk1.mlmodelc")
+        let priorChunk2Url = baseUrl.appending(path: "WuerstchenPriorChunk2.mlmodelc")
+        
+        let prior: WuerstchenPrior
+        if FileManager.default.fileExists(atPath: priorUrl.path(percentEncoded: false)) {
+            prior = try WuerstchenPrior(modelAt: priorUrl)
+        } else if FileManager.default.fileExists(atPath: priorChunk1Url.path) &&
+                    FileManager.default.fileExists(atPath: priorChunk2Url.path) {
+            prior = try WuerstchenPrior(chunksAt: [priorChunk1Url, priorChunk2Url])
+        } else {
+            throw DiffusionPipelineError.invalidPipeline
+        }
+        
+        let decoderUrl = baseUrl.appending(path: "WuerstchenDecoder.mlmodelc")
+        let decoderChunk1Url = baseUrl.appending(path: "WuerstchenDecoderChunk1.mlmodelc")
+        let decoderChunk2Url = baseUrl.appending(path: "WuerstchenDecoderChunk2.mlmodelc")
+        
+        let decoder: WuerstchenDecoder
+        if FileManager.default.fileExists(atPath: decoderUrl.path(percentEncoded: false)) {
+            decoder = try WuerstchenDecoder(modelAt: decoderUrl)
+        } else if FileManager.default.fileExists(atPath: decoderChunk1Url.path) &&
+                    FileManager.default.fileExists(atPath: decoderChunk2Url.path) {
+            decoder = try WuerstchenDecoder(chunksAt: [decoderChunk1Url, decoderChunk2Url])
+        } else {
+            throw DiffusionPipelineError.invalidPipeline
+        }
+        
+        let textEncoderUrl = baseUrl.appending(path: "TextEncoder.mlmodelc")
+        let textEncoder = try TextEncoder(modelAt: textEncoderUrl, configuration: decoder.configuration)
+        let vqganUrl = baseUrl.appending(path: "WuerstchenVQGAN.mlmodelc")
+        let vqgan = try WuerstchenVQGAN(modelAt: vqganUrl, configuration: decoder.configuration)
+        
+        let reduceMemory = physicalMemory < 6
+        return WuerstchenPipeline(
+            baseUrl: baseUrl,
+            textEncoder: textEncoder,
+            prior: prior,
+            decoder: decoder,
+            vqgan: vqgan,
+            reduceMemory: reduceMemory
+        )
     }
 }
