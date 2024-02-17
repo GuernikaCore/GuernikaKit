@@ -376,15 +376,7 @@ public class StableDiffusionMainPipeline: StableDiffusionPipeline {
         var shape = noise.shape
         shape[0] = 1
         return MLShapedArray<Float>(unsafeUninitializedShape: shape) { result, _ in
-            noise.withUnsafeShapedBufferPointer { scalars, _, strides in
-                for i in 0..<result.count {
-                    // unconditioned + guidance*(text - unconditioned)
-                    result.initializeElement(
-                        at: i,
-                        to: scalars[i] + guidanceScale * (scalars[strides[0] + i] - scalars[i])
-                    )
-                }
-            }
+            vDSP.linearInterpolate(noise[1].scalars, noise[0].scalars, using: guidanceScale, result: &result)
         }
     }
 }
