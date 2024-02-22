@@ -222,7 +222,7 @@ extension ControlNet {
         
         static func infoForModel(at url: URL) throws -> Info? {
             let moduleUrl = url.appendingPathComponent("guernika.json")
-            if FileManager.default.fileExists(atPath: moduleUrl.path(percentEncoded: false)) {
+            if FileManager.default.fileExists(atPath: moduleUrl.absoluteURL.path(percentEncoded: false)) {
                 return try JSONDecoder().decode(Info.self, from: Data(contentsOf: moduleUrl))
             }
             return nil

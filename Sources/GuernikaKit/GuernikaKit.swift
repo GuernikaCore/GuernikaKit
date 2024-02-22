@@ -27,7 +27,7 @@ public enum GuernikaKit {
         let unetChunk2Url = baseUrl.appending(path: "UnetChunk2.mlmodelc")
         
         let unet: Unet
-        if FileManager.default.fileExists(atPath: unetUrl.path(percentEncoded: false)) {
+        if FileManager.default.fileExists(atPath: unetUrl.absoluteURL.path(percentEncoded: false)) {
             unet = try Unet(modelAt: unetUrl)
         } else if FileManager.default.fileExists(atPath: unetChunk1Url.path) &&
             FileManager.default.fileExists(atPath: unetChunk2Url.path) {
@@ -49,7 +49,7 @@ public enum GuernikaKit {
         
         let decoder = try Decoder(modelAt: decoderUrl, configuration: unet.configuration)
         var safetyChecker: SafetyChecker? = nil
-        if FileManager.default.fileExists(atPath: safetyCheckerUrl.path(percentEncoded: false)) {
+        if FileManager.default.fileExists(atPath: safetyCheckerUrl.absoluteURL.path(percentEncoded: false)) {
             safetyChecker = SafetyChecker(modelAt: safetyCheckerUrl, configuration: unet.configuration)
         }
         
@@ -83,13 +83,13 @@ public enum GuernikaKit {
             )
         default:
             var encoder: Encoder? = nil
-            if FileManager.default.fileExists(atPath: encoderUrl.path(percentEncoded: false)) {
+            if FileManager.default.fileExists(atPath: encoderUrl.absoluteURL.path(percentEncoded: false)) {
                 encoder = try Encoder(modelAt: encoderUrl, configuration: unet.configuration)
             }
             let textEncoder = try TextEncoder(modelAt: textEncoderUrl, configuration: unet.configuration)
             var textEncoder2: TextEncoder? = nil
             let textEncoder2Url = baseUrl.appending(path: "TextEncoder2.mlmodelc")
-            if FileManager.default.fileExists(atPath: textEncoder2Url.path(percentEncoded: false)) {
+            if FileManager.default.fileExists(atPath: textEncoder2Url.absoluteURL.path(percentEncoded: false)) {
                 textEncoder2 = try TextEncoder(modelAt: textEncoder2Url, configuration: unet.configuration)
             }
             if let textEncoder2 {
@@ -128,7 +128,7 @@ public enum GuernikaKit {
         let priorChunk2Url = baseUrl.appending(path: "WuerstchenPriorChunk2.mlmodelc")
         
         let prior: WuerstchenPrior
-        if FileManager.default.fileExists(atPath: priorUrl.path(percentEncoded: false)) {
+        if FileManager.default.fileExists(atPath: priorUrl.absoluteURL.path(percentEncoded: false)) {
             prior = try WuerstchenPrior(modelAt: priorUrl)
         } else if FileManager.default.fileExists(atPath: priorChunk1Url.path) &&
                     FileManager.default.fileExists(atPath: priorChunk2Url.path) {
@@ -142,7 +142,7 @@ public enum GuernikaKit {
         let decoderChunk2Url = baseUrl.appending(path: "WuerstchenDecoderChunk2.mlmodelc")
         
         let decoder: WuerstchenDecoder
-        if FileManager.default.fileExists(atPath: decoderUrl.path(percentEncoded: false)) {
+        if FileManager.default.fileExists(atPath: decoderUrl.absoluteURL.path(percentEncoded: false)) {
             decoder = try WuerstchenDecoder(modelAt: decoderUrl)
         } else if FileManager.default.fileExists(atPath: decoderChunk1Url.path) &&
                     FileManager.default.fileExists(atPath: decoderChunk2Url.path) {
