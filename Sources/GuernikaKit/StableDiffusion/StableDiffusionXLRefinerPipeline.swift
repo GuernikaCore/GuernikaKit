@@ -407,7 +407,8 @@ public class StableDiffusionXLRefinerPipeline: StableDiffusionPipeline {
         var shape = noise.shape
         shape[0] = 1
         return MLShapedArray<Float>(unsafeUninitializedShape: shape) { result, _ in
-            vDSP.linearInterpolate(noise[1].scalars, noise[0].scalars, using: guidanceScale, result: &result)
+            // unconditioned + guidance * (text - unconditioned)
+            vDSP.linearInterpolate(noise[0].scalars, noise[1].scalars, using: guidanceScale, result: &result)
         }
     }
 }
