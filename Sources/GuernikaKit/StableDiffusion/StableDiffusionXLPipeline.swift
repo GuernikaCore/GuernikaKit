@@ -178,7 +178,7 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
         )
         
         let targetSize = CGSize(width: input.size?.width ?? sampleSize.width, height: input.size?.height ?? sampleSize.height)
-        let negativeScale = 0.5
+        let negativeSize = 512
         // Prepare added time ids & embeddings
         var timeIds = MLShapedArray<Float32>(scalars: [
             // original_size
@@ -192,7 +192,7 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
         if doClassifierFreeGuidance {
             let negativeTimeIds = MLShapedArray<Float32>(scalars: [
                 // original_size (negative)
-                Float32(targetSize.height * negativeScale), Float32(targetSize.width * negativeScale),
+                Float32(negativeSize), Float32(negativeSize),
                 // crops_coords_top_left
                 0, 0,
                 // target_size
