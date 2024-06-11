@@ -277,9 +277,10 @@ extension StableDiffusionPipeline {
                 latent[0][3].withUnsafeShapedBufferPointer { channel3Ptr, _, _ in
                     buffer.withUnsafeMutableBufferPointer { ptr in
                         for i in 0..<channel3Ptr.count {
-                            ptr[i] = ptr[i] + (channel1Ptr[i] * latentRGBFactors[1][channel])
-                                + (channel2Ptr[i] * latentRGBFactors[2][channel])
-                                + (channel3Ptr[i] * latentRGBFactors[3][channel])
+                            let channel1: Float = (channel1Ptr[i] * latentRGBFactors[1][channel])
+                            let channel2: Float = (channel2Ptr[i] * latentRGBFactors[2][channel])
+                            let channel3: Float = (channel3Ptr[i] * latentRGBFactors[3][channel])
+                            ptr[i] = ptr[i] + channel1 + channel2 + channel3
                             ptr[i] = min(1, max(0, (ptr[i] + 1) / 2))
                         }
                     }
