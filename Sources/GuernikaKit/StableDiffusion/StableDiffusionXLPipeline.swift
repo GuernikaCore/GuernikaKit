@@ -177,17 +177,29 @@ public class StableDiffusionXLPipeline: StableDiffusionPipeline {
             prompt: input.prompt, negativePrompt: input.negativePrompt
         )
         
+        let targetSize = CGSize(width: input.size?.width ?? sampleSize.width, height: input.size?.height ?? sampleSize.height)
+        let negativeSize = 512
         // Prepare added time ids & embeddings
         var timeIds = MLShapedArray<Float32>(scalars: [
             // original_size
-            Float32(sampleSize.height), Float32(sampleSize.width),
+            Float32(targetSize.height), Float32(targetSize.width),
             // crops_coords_top_left
             0, 0,
             // target_size
-            Float32(sampleSize.height), Float32(sampleSize.width)
+            Float32(targetSize.height), Float32(targetSize.width)
         ], shape: [1, 6])
+
         if doClassifierFreeGuidance {
-            timeIds = MLShapedArray<Float32>(concatenating: Array(repeating: timeIds, count: batchSize), alongAxis: 0)
+            let negativeTimeIds = MLShapedArray<Float32>(scalars: [
+                // original_size (negative)
+                Float32(negativeSize), Float32(negativeSize),
+                // crops_coords_top_left
+                0, 0,
+                // target_size
+                Float32(targetSize.height), Float32(targetSize.width)
+            ], shape: [1, 6])
+            timeIds = MLShapedArray<Float32>(concatenating: [negativeTimeIds, timeIds], alongAxis: 0)
+            timeIds = MLShapedArray<Float32>(concatenating: Array(repeating: timeIds, count: 1), alongAxis: 0)
         }
         
         let generator: RandomGenerator = TorchRandomGenerator(seed: input.seed)
