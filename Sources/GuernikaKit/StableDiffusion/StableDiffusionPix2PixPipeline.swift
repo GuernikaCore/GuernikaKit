@@ -227,7 +227,7 @@ public class StableDiffusionPix2PixPipeline: StableDiffusionPipeline {
         }
 
         // Decode the latent sample to image
-        let image = try decodeToImage(latent)
+        let image = try decodeToImage(scheduler.modelOutputs.last ?? latent)
         
         if reduceMemory {
             decoder.unloadResources()
